@@ -1,0 +1,10 @@
+# Build the kernel as a freestanding x86_64 binary (no std, no libc).
+[build]
+target = "x86_64-unknown-none"
+
+[target.x86_64-unknown-none]
+# We provide our own linker script (see linker.ld) which lays out the kernel
+# at 1 MiB physical and keeps the Multiboot2 header at the very front.
+rustflags = [
+  "-C", "link-arg=-Tlinker.ld",
+]
