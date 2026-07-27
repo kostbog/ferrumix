@@ -1,45 +1,46 @@
-# Roadmap: от каркаса ядра к клону Unix
+# Roadmap: from kernel skeleton to a Unix clone
 
-Текущее состояние — работающее «голое» ядро в ring 0 (см. README). Ниже —
-план превращения его в минимальный, но настоящий Unix-подобный систему.
-Каждый пункт — отдельный, обозримый шаг.
+Current state — a working "bare" kernel in ring 0 (see README). Below is a
+plan for turning it into a minimal but genuine Unix-like system.
+Each item is a separate, well-scoped step.
 
-## 1. Память и процессы (ring 3)
-- [ ] Кастомный `target.json` (`x86_64-ferrumix`) вместо только `unknown-none`.
-- [ ] Higher-half карта ядра (например, `-2 GiB`), отдельные таблицы страниц
-      на процесс; frame allocator (buddy / bitmap) поверх Multiboot2 mmap.
-- [ ] `Task`/`Process`: адресное пространство, регистры, стек ядра.
-- [ ] Переключение контекста: `switch_to` (сохранение/восстановление RIP/RSP
-      и page tables) + планировщик (round-robin) на таймере PIT.
-- [ ] Переход в ring 3 через `iret` в загруженный ELF userspace.
+## 1. Memory and processes (ring 3)
+- [ ] Custom `target.json` (`x86_64-ferrumix`) instead of just `unknown-none`.
+- [ ] Higher-half kernel map (e.g. `-2 GiB`), separate page tables per
+      process; frame allocator (buddy / bitmap) on top of the Multiboot2 mmap.
+- [ ] `Task`/`Process`: address space, registers, kernel stack.
+- [ ] Context switching: `switch_to` (saving/restoring RIP/RSP and page
+      tables) + a scheduler (round-robin) driven by the PIT timer.
+- [ ] Transition to ring 3 via `iret` into a loaded ELF userspace binary.
 
-## 2. Системные вызовы
-- [ ] Обработчик `syscall`/`sysenter` (и запасной `int 0x80`).
-- [ ] Базовый набор: `exit`, `write`, `read`, `fork`, `exec`, `wait`,
-      `open`/`close`/`read`/`write` для VFS, `getpid`, `brk`/`mmap`.
-- [ ] Копирование данных между user/kernel (проверка указателей!).
+## 2. System calls
+- [ ] `syscall`/`sysenter` handler (with a fallback `int 0x80`).
+- [ ] Basic set: `exit`, `write`, `read`, `fork`, `exec`, `wait`,
+      `open`/`close`/`read`/`write` for the VFS, `getpid`, `brk`/`mmap`.
+- [ ] Copying data between user/kernel (pointer validation!).
 
-## 3. Виртуальная файловая система
-- [ ] VFS с узлами (`inode`-подобными) и операциями.
-- [ ] `devfs`: `tty` (наш VGA/serial), `null`, `zero`.
-- [ ] Простая ФС в ОЗУ (`ramfs`/`tmpfs`) для `/`, `/bin`, `/dev`.
-- [ ] Загрузка ELF-файлов из VFS в адресное пространство процесса.
+## 3. Virtual filesystem
+- [ ] VFS with nodes (`inode`-like) and operations.
+- [ ] `devfs`: `tty` (our VGA/serial), `null`, `zero`.
+- [ ] Simple in-RAM filesystem (`ramfs`/`tmpfs`) for `/`, `/bin`, `/dev`.
+- [ ] Loading ELF files from the VFS into a process's address space.
 
-## 4. Пользовательское окружение
-- [ ] `init` (pid 1): монтирует VFS, запускает оболочку.
-- [ ] Оболочка (`sh`): парсинг строк, `cd`, `echo`, пайпы (`|`), перенаправления.
-- [ ] Утилиты: `ls`, `cat`, `echo`, `ps`, `kill`, `mkdir`, `rm` (freestanding,
-      собираются под `x86_64-ferrumix`).
+## 4. Userland environment
+- [ ] `init` (pid 1): mounts the VFS, starts the shell.
+- [ ] Shell (`sh`): line parsing, `cd`, `echo`, pipes (`|`), redirections.
+- [ ] Utilities: `ls`, `cat`, `echo`, `ps`, `kill`, `mkdir`, `rm`
+      (freestanding, built for `x86_64-ferrumix`).
 
-## 5. Надёжность и комфорт
-- [ ] Вывод в `fb` (framebuffer из Multiboot2) вместо только текстового VGA.
-- [ ] ACPI / Local APIC таймер и многопоточность на нескольких ядрах CPU.
-- [ ] `stdio` через терминал с экранированием, `printf`-совместимость.
-- [ ] Тесты: юнит-тесты портов памяти и страниц, интеграционные в QEMU.
+## 5. Reliability and quality of life
+- [ ] Output to `fb` (framebuffer from Multiboot2) instead of text-mode
+      VGA only.
+- [ ] ACPI / Local APIC timer and multi-core CPU support.
+- [ ] `stdio` over the terminal with escaping, `printf` compatibility.
+- [ ] Tests: unit tests for memory/page ports, integration tests in QEMU.
 
-## Архитектурные решения (на будущее)
-- **Модель процессов:** классическая Unix — `fork`/`exec`, дерево процессов,
-  `init` как pid 1.
-- **Драйверы:** минимальные (VGA, serial, PIC, PIT, keyboard, ATA позже).
-- **Сборка:** ядро — `no_std` + `core`; userspace — freestanding под кастомный
-  таргет, грузится ядром из VFS.
+## Architectural decisions (for the future)
+- **Process model:** classic Unix — `fork`/`exec`, a process tree,
+  `init` as pid 1.
+- **Drivers:** minimal (VGA, serial, PIC, PIT, keyboard, ATA later).
+- **Build:** kernel — `no_std` + `core`; userspace — freestanding for a
+  custom target, loaded by the kernel from the VFS.
