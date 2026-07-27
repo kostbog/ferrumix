@@ -18,5 +18,14 @@ run: build
 run-headless: build
 	$(QEMU) -kernel $(KERNEL) -serial stdio -display none -monitor none
 
+# Functional boot test: run the kernel under headless QEMU and assert that it
+# reaches the idle loop. Used by CI (and locally) as the kernel's "test".
+test: build
+	@out=$$(timeout 15 $(QEMU) -kernel $(KERNEL) -serial stdio -display none -monitor none 2>&1); \
+	printf '%s\n' "$$out"; \
+	echo "$$out" | grep -q "Ferrumix 0.1.0" || { echo "FAIL: banner not found"; exit 1; }; \
+	echo "$$out" | grep -q "is alive" || { echo "FAIL: kernel did not reach idle loop"; exit 1; }; \
+	echo "BOOT TEST PASSED"
+
 clean:
 	cargo clean

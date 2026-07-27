@@ -1,5 +1,7 @@
 # Ferrumix
 
+![CI](https://github.com/kostbog/ferrumix/actions/workflows/ci.yml/badge.svg)
+
 > *ferrum* (лат. «железо») + *ix* — клон Unix, написанный на Rust.
 
 Ferrumix — это с нуля написанное **ядро ОС для x86_64**, загружаемое по
@@ -66,6 +68,17 @@ Ferrumix is alive. (idle loop; timer ticks on the serial line)
 timer tick 1000
 ...
 ```
+
+## Continuous Integration
+
+Все сборка и тесты идут в **GitHub Actions** (`.github/workflows/ci.yml`):
+устанавливается Rust + таргет `x86_64-unknown-none` + QEMU, ядро собирается,
+затем грузится в headless-QEMU и проверяется, что оно выводит баннер и
+доходит до idle-цикла (`make test`). Этот boot-тест играет роль юнит-теста
+для freestanding-ядра (обычный `cargo test` здесь неприменим).
+
+Локально тот же тест: `make test` (нужен установленный `qemu-system-x86_64`).
+
 
 ## Структура
 
