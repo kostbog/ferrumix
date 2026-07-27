@@ -1,0 +1,10 @@
+[package]
+name = "ferrumix-userspace"
+version = "0.1.0"
+edition = "2021"
+# This crate is a freestanding userspace program. It is NOT part of the kernel
+# build yet: the kernel does not load ring-3 tasks at this stage. See
+# userspace/README.md for the plan and how it will eventually be linked and
+# loaded by the Ferrumix kernel.
+
+[dependencies]

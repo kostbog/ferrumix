@@ -1,0 +1,20 @@
+[package]
+name = "ferrumix"
+version = "0.1.0"
+edition = "2021"
+description = "Ferrumix — a tiny Unix-like kernel written in Rust (x86_64, Multiboot2)"
+license = "MIT OR Apache-2.0"
+
+# No external crates: the kernel is pure no_std + core.
+[dependencies]
+
+# The kernel never unwinds; abort on panic keeps the binary tiny and removes
+# the need for an unwinding personality / _Unwind_Resume.
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = 2
+lto = true
+debug = false
