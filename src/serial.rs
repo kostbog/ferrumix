@@ -14,7 +14,15 @@ impl SerialWriter {
 
     fn send(&mut self, b: u8) {
         unsafe {
-            // Wait for the transmit holding register to be empty (LSR bit 5).
+            while (port::inb(0x3F8 + 5) & 0x20) == 0 {
+                core::hint::spin_loop();
+            }
+            port::outb(0x3F8, b);
+        }
+    }
+
+    pub fn write_byte(&mut self, b: u8) {
+        unsafe {
             while (port::inb(0x3F8 + 5) & 0x20) == 0 {
                 core::hint::spin_loop();
             }
@@ -41,16 +49,15 @@ impl fmt::Write for SerialWriter {
 
 pub static SERIAL: Spinlock<SerialWriter> = Spinlock::new(SerialWriter::new());
 
-/// Initialise COM1 at 38400 8N1.
 pub fn init() {
     unsafe {
-        port::outb(0x3F8 + 1, 0x00); // disable interrupts
-        port::outb(0x3F8 + 3, 0x80); // set DLAB
-        port::outb(0x3F8 + 0, 0x03); // divisor low  (38400 @ 1.8432 MHz)
-        port::outb(0x3F8 + 1, 0x00); // divisor high
-        port::outb(0x3F8 + 3, 0x03); // 8 data bits, no parity, 1 stop bit
-        port::outb(0x3F8 + 2, 0xC7); // enable FIFO, clear, 14-byte threshold
-        port::outb(0x3F8 + 1, 0x01); // enable received-data interrupt (optional)
+        port::outb(0x3F8 + 1, 0x00);
+        port::outb(0x3F8 + 3, 0x80);
+        port::outb(0x3F8 + 0, 0x03);
+        port::outb(0x3F8 + 1, 0x00);
+        port::outb(0x3F8 + 3, 0x03);
+        port::outb(0x3F8 + 2, 0xC7);
+        port::outb(0x3F8 + 1, 0x01);
     }
 }
 
@@ -71,6 +78,5 @@ macro_rules! serial_println {
 #[doc(hidden)]
 pub fn _serial_print(args: fmt::Arguments) {
     use core::fmt::Write;
-    // `fmt::Error` is not `Debug`, so we can't `.unwrap()`; ignore errors.
     let _ = SERIAL.lock().write_fmt(args);
 }

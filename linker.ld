@@ -16,6 +16,9 @@ SECTIONS
     /* Load base: 1 MiB. Well inside the identity-mapped region. */
     . = 1M;
 
+    __kernel_start = .;
+    __kernel_phys_start = .;
+
     .text : {
         KEEP(*(.multiboot2))      /* Multiboot2 header must come first */
         *(.text .text.*)
@@ -31,8 +34,12 @@ SECTIONS
     }
 
     .bss : ALIGN(4K) {
+        *(COMMON)
         *(.bss .bss.*)
     }
+
+    __kernel_end = .;
+    __kernel_phys_end = .;
 
     /DISCARD/ : {
         *(.eh_frame)

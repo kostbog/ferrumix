@@ -1,5 +1,5 @@
 //! Interrupt wiring: exceptions (IDT), the 8259 PIC remap, the PIT timer,
-//! and the keyboard. All handlers use the `x86-interrupt` ABI.
+//! keyboard, and the Unix syscall gate (int 0x80).
 
 use crate::idt;
 use crate::port;
@@ -34,7 +34,7 @@ extern "x86-interrupt" fn double_fault(frame: &mut InterruptStackFrame, code: u6
 
 extern "x86-interrupt" fn page_fault(frame: &mut InterruptStackFrame, code: u64) {
     let cr2: u64;
-    unsafe { asm!("mov cr2, {0}", out(reg) cr2, options(nomem, nostack)) };
+    unsafe { asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack)) };
     crate::serial::serial_println!(
         "PAGE FAULT @ {:#x} (cr2={:#x}, err={:#x})",
         frame.rip,
@@ -55,7 +55,7 @@ extern "x86-interrupt" fn timer_handler(_frame: &mut InterruptStackFrame) {
             crate::serial::serial_println!("timer tick {}", TICKS);
         }
     }
-    unsafe { port::outb(0x20, 0x20) }; // EOI to master PIC
+    unsafe { port::outb(0x20, 0x20) };
 }
 
 extern "x86-interrupt" fn keyboard_handler(_frame: &mut InterruptStackFrame) {
@@ -63,10 +63,9 @@ extern "x86-interrupt" fn keyboard_handler(_frame: &mut InterruptStackFrame) {
     if let Some(c) = scancode_to_ascii(scan) {
         crate::serial::serial_println!("key: {}", c);
     }
-    unsafe { port::outb(0x20, 0x20) }; // EOI to master PIC
+    unsafe { port::outb(0x20, 0x20) };
 }
 
-/// Minimal US QWERTY set-1 scancode -> ASCII (ignores key-up upper bit).
 fn scancode_to_ascii(s: u8) -> Option<char> {
     let c = match s & 0x7F {
         0x01 => '1',
@@ -82,7 +81,7 @@ fn scancode_to_ascii(s: u8) -> Option<char> {
         0x0B => '-',
         0x0C => '=',
         0x0D => '\n',
-        0x0E => '\u{8}', // backspace
+        0x0E => '\u{8}',
         0x0F => '\t',
         0x10 => 'q',
         0x11 => 'w',
@@ -133,56 +132,50 @@ pub fn init() {
         }
         idt::IDT[3].set_handler(breakpoint as usize as u64);
         idt::IDT[8].set_handler(double_fault as usize as u64);
-        idt::IDT[8].ist = 1; // use IST#0 so a broken stack can't wedge us
+        idt::IDT[8].ist = 1;
         idt::IDT[14].set_handler(page_fault as usize as u64);
 
-        // IRQs 0..15 -> vectors 32..47.
         idt::IDT[32].set_handler(timer_handler as usize as u64);
         idt::IDT[33].set_handler(keyboard_handler as usize as u64);
+
+        idt::IDT[0x80].set_handler_with_dpl(crate::syscall::syscall_int80_entry as usize as u64, 3);
 
         idt::load();
         remap_pic();
         init_pit();
 
-        // Unmask IRQ0 (timer) and IRQ1 (keyboard) on the master PIC.
         port::outb(0x21, 0xFC);
-        port::outb(0xA1, 0xFF); // mask everything on the slave
+        port::outb(0xA1, 0xFF);
 
         asm!("sti", options(nomem, nostack));
     }
+    crate::syscall::init();
 }
 
-/// Remap the 8259 PIC so IRQs 0..15 land on vectors 0x20..0x2F.
 unsafe fn remap_pic() {
-    // Start initialization (ICW1). Expects ICW4.
     port::outb(0x20, 0x11);
     port::io_wait();
     port::outb(0xA0, 0x11);
     port::io_wait();
-    // ICW2: master base = 0x20, slave base = 0x28.
     port::outb(0x21, 0x20);
     port::io_wait();
     port::outb(0xA1, 0x28);
     port::io_wait();
-    // ICW3: master has slave on IRQ2; slave id is 2.
     port::outb(0x21, 0x04);
     port::io_wait();
     port::outb(0xA1, 0x02);
     port::io_wait();
-    // ICW4: 8086 mode.
     port::outb(0x21, 0x01);
     port::io_wait();
     port::outb(0xA1, 0x01);
     port::io_wait();
-    // Mask all IRQs initially; init() unmasks what it needs.
     port::outb(0x21, 0xFF);
     port::outb(0xA1, 0xFF);
 }
 
-/// Program the PIT channel 0 to ~100 Hz (square wave).
 unsafe fn init_pit() {
     let divisor: u16 = 1193182 / 100;
-    port::outb(0x43, 0x36); // channel 0, lobyte/hibyte, mode 3 (square wave)
+    port::outb(0x43, 0x36);
     port::outb(0x40, (divisor & 0xFF) as u8);
     port::outb(0x40, (divisor >> 8) as u8);
 }
