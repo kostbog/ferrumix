@@ -28,9 +28,19 @@ impl Entry {
     }
 
     pub fn set_handler(&mut self, handler: u64) {
-        self.gdt_selector = 0x08; // 64-bit kernel code segment
+        self.gdt_selector = 0x08;
         self.ist = 0;
-        self.type_attr = 0x8E; // present, ring0, interrupt gate
+        self.type_attr = 0x8E;
+        self.pointer_low = handler as u16;
+        self.pointer_mid = (handler >> 16) as u16;
+        self.pointer_high = (handler >> 32) as u32;
+    }
+
+    pub fn set_handler_with_dpl(&mut self, handler: u64, dpl: u8) {
+        let type_attr = 0x80 | ((dpl & 0x3) << 5) | 0x0E;
+        self.gdt_selector = 0x08;
+        self.ist = 0;
+        self.type_attr = type_attr;
         self.pointer_low = handler as u16;
         self.pointer_mid = (handler >> 16) as u16;
         self.pointer_high = (handler >> 32) as u32;
@@ -45,7 +55,6 @@ pub struct Descriptor {
 
 pub static mut IDT: [Entry; 256] = [Entry::missing(); 256];
 
-/// Load the IDT register from our static table.
 pub unsafe fn load() {
     let desc = Descriptor {
         limit: (core::mem::size_of::<[Entry; 256]>() - 1) as u16,

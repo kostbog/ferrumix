@@ -4,8 +4,17 @@
 //! in `EBX` at entry. Because we identity-map the low 1 GiB, that address is
 //! also a valid virtual address here.
 
+#[derive(Clone, Copy, Debug)]
+pub struct MemoryRegion {
+    pub base: u64,
+    pub len: u64,
+    pub ty: u32,
+}
+
 pub struct Info {
     pub usable_memory: u64,
+    pub regions: [MemoryRegion; 32],
+    pub region_count: usize,
 }
 
 const TAG_END: u32 = 0;
@@ -32,6 +41,12 @@ struct MmapEntry {
 /// caller (the boot trampoline) guarantees this.
 pub unsafe fn parse(addr: usize) -> Info {
     let mut usable: u64 = 0;
+    let mut regions: [MemoryRegion; 32] = [MemoryRegion {
+        base: 0,
+        len: 0,
+        ty: 0,
+    }; 32];
+    let mut region_count: usize = 0;
     let mut p = (addr + 8) as *const u8; // skip total_size + reserved
 
     loop {
@@ -53,6 +68,15 @@ pub unsafe fn parse(addr: usize) -> Info {
                     // type 1 == available RAM
                     usable += (*ent).length;
                 }
+                // Save to our small static buffer if room.
+                if region_count < regions.len() {
+                    regions[region_count] = MemoryRegion {
+                        base: (*ent).base,
+                        len: (*ent).length,
+                        ty: (*ent).ty,
+                    };
+                    region_count += 1;
+                }
                 e = e.add(esz);
             }
         }
@@ -61,5 +85,16 @@ pub unsafe fn parse(addr: usize) -> Info {
         p = p.add((size + 7) & !7);
     }
 
-    Info { usable_memory: usable }
+    Info {
+        usable_memory: usable,
+        regions,
+        region_count,
+    }
+}
+
+impl Info {
+    /// Iterator over memory regions slice.
+    pub fn regions_slice(&self) -> &[MemoryRegion] {
+        &self.regions[..self.region_count]
+    }
 }
