@@ -58,3 +58,33 @@ pub unsafe fn sti() {
 pub unsafe fn cli() {
     asm!("cli", options(nomem, nostack));
 }
+
+/// Disable interrupts and return whether they were previously enabled.
+///
+/// Uses `pushf`+`cli`+`pop` to atomically:
+///   1. Save original RFLAGS (with original IF state)
+///   2. Disable interrupts
+///   3. Load the saved flags to check IF
+///
+/// x86 does not reorder instructions within a single CPU, so this is safe.
+/// We use `inlateout(reg) 0u64` to tell the compiler a register is used as
+/// scratch (the value 0 is arbitrary — it just ensures the compiler picks a
+/// general-purpose register, not RSP).  The `pop` overwrites it with the
+/// saved RFLAGS value.
+pub unsafe fn pushcli() -> bool {
+    let flags: u64;
+    asm!(
+        "pushf",
+        "cli",
+        "pop {f}",
+        f = inlateout(reg) 0u64 => flags,
+    );
+    flags & (1 << 9) != 0
+}
+
+/// Re-enable interrupts if they were enabled before the matching pushcli.
+pub unsafe fn popcli(was_enabled: bool) {
+    if was_enabled {
+        asm!("sti", options(nomem, nostack));
+    }
+}

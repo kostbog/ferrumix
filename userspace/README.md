@@ -1,25 +1,28 @@
 # Ferrumix userspace
 
-This directory is the scaffold for Ferrumix's ring-3 user programs. After the
-first Unix step the kernel already has:
+This directory is the scaffold for Ferrumix's ring-3 user programs. The kernel
+has:
 
 - GDT with user code/data (DPL3) and TSS.rsp0
 - IDT gate for `int 0x80` at DPL3
 - frame allocator and process table
-- syscall handler (`write`, `exit`, `getpid`)
+- syscall handler (`read`, `write`, `open`, `close`, `exit`, `getpid`, `brk`)
+- **interactive shell** running from kernel_main with built-in commands
 
-So the ABI below is now **functional** from ring 0 self-tests (`kernel_main`
-does `int 0x80` write). Ring-3 entry via `iret`/`sysret` into ELF is next,
-but the gate is already usable and tested in CI.
+The ABI below is **functional** from ring 0. Ring-3 entry via `iret`/`sysret`
+into ELF is next, but the gate is already usable.
 
 ## System-call ABI (implemented)
 
 | nr | name   | args                         | returns | notes |
 |----|--------|------------------------------|---------|-------|
-| 0  | exit   | `code: usize`                | `!`     | also 60 (Linux compat) |
+| 0  | read   | `fd`, `buf*`, `len`          | `usize` | stdin=0 → keyboard buffer |
 | 1  | write  | `fd`, `buf*`, `len`          | `usize` | stdout=1, stderr=2 → VGA+serial |
+| 2  | open   | `path*`, `flags`, `mode`     | `fd`    | stub, returns 3 |
+| 3  | close  | `fd`                         | `0`     | stub |
 | 12 | brk    | `addr`                       | `usize` | stub, returns 0 |
 | 39 | getpid | —                            | `pid`   | from process table |
+| 60 | exit   | `code: usize`                | `!`     | halts process |
 
 Registers: `rax` = syscall number, `rdi`/`rsi`/`rdx` = arguments, `rax` = return
 (or negative errno). `rcx`/`r11` are clobbered (as in `syscall` instruction

@@ -2,9 +2,11 @@
 
 use core::arch::asm;
 
-pub const SYS_USER_EXIT: u64 = 0;
-pub const SYS_USER_WRITE: u64 = 1;
+// Standard Linux x86_64 syscall numbers
+pub const SYS_READ: u64 = 0;
 pub const SYS_WRITE: u64 = 1;
+pub const SYS_OPEN: u64 = 2;
+pub const SYS_CLOSE: u64 = 3;
 pub const SYS_BRK: u64 = 12;
 pub const SYS_GETPID: u64 = 39;
 pub const SYS_EXIT: u64 = 60;
@@ -94,18 +96,58 @@ pub extern "C" fn syscall_dispatch(stack: *mut SyscallStack) -> u64 {
         let s = &*stack;
         let nr = s.rax;
         match nr {
-            SYS_USER_WRITE | SYS_WRITE => do_write(s.rdi as usize, s.rsi as *const u8, s.rdx as usize),
-            SYS_USER_EXIT | SYS_EXIT => do_exit(s.rdi as usize),
-            SYS_GETPID => crate::process::current_pid(),
+            SYS_READ => do_read(s.rdi as usize, s.rsi as *mut u8, s.rdx as usize),
+            SYS_WRITE => do_write(s.rdi as usize, s.rsi as *const u8, s.rdx as usize),
+            SYS_OPEN => {
+                crate::serial::serial_println!("syscall: open({:#x}, ...) -> stub 3", s.rdi);
+                3 // return a fake fd
+            }
+            SYS_CLOSE => {
+                crate::serial::serial_println!("syscall: close({}) -> ok", s.rdi);
+                0
+            }
             SYS_BRK => {
                 crate::serial::serial_println!("syscall: brk({:#x}) -> stub 0", s.rdi);
                 0
             }
+            SYS_GETPID => crate::process::current_pid(),
+            SYS_EXIT => do_exit(s.rdi as usize),
             _ => {
                 crate::serial::serial_println!("syscall: unknown nr {} (rip={:#x}) -> ENOSYS", nr, s.rip);
                 (-(ENOSYS as i64)) as u64
             }
         }
+    }
+}
+
+fn do_read(fd: usize, buf_ptr: *mut u8, len: usize) -> u64 {
+    if buf_ptr.is_null() {
+        return (-(EFAULT as i64)) as u64;
+    }
+    if len == 0 {
+        return 0;
+    }
+
+    // Read from stdin (fd 0) — keyboard character buffer
+    if fd == 0 {
+        let slice = unsafe { core::slice::from_raw_parts_mut(buf_ptr, len) };
+        let mut bytes_read: usize = 0;
+        while bytes_read < len {
+            match crate::kb_buffer::try_read_char() {
+                Some(c) => {
+                    slice[bytes_read] = c;
+                    bytes_read += 1;
+                    if c == b'\n' {
+                        break; // line complete
+                    }
+                }
+                None => break, // no more data available (non-blocking)
+            }
+        }
+        bytes_read as u64
+    } else {
+        crate::serial::serial_println!("syscall: read fd={} len={} -> stub 0", fd, len);
+        0
     }
 }
 
