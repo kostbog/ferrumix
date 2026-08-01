@@ -18,116 +18,6 @@ pub struct InterruptStackFrame {
     pub ss: u64,
 }
 
-// Assembly macro to generate interrupt stubs
-// For interrupts without error code, we push a dummy error code
-macro_rules! interrupt_stub {
-    ($name:ident, $handler:ident, no_error_code) => {
-        global_asm!(
-            concat!(
-                ".global ", stringify!($name), "\n",
-                ".type ", stringify!($name), ", @function\n",
-                stringify!($name), ":\n",
-                "    push 0\n",           // dummy error code
-                "    push rax\n",
-                "    push rbx\n",
-                "    push rcx\n",
-                "    push rdx\n",
-                "    push rsi\n",
-                "    push rdi\n",
-                "    push rbp\n",
-                "    push r8\n",
-                "    push r9\n",
-                "    push r10\n",
-                "    push r11\n",
-                "    push r12\n",
-                "    push r13\n",
-                "    push r14\n",
-                "    push r15\n",
-                "    mov rdi, rsp\n",     // pass stack pointer as first arg
-                "    call ", stringify!($handler), "\n",
-                "    pop r15\n",
-                "    pop r14\n",
-                "    pop r13\n",
-                "    pop r12\n",
-                "    pop r11\n",
-                "    pop r10\n",
-                "    pop r9\n",
-                "    pop r8\n",
-                "    pop rbp\n",
-                "    pop rdi\n",
-                "    pop rsi\n",
-                "    pop rdx\n",
-                "    pop rcx\n",
-                "    pop rbx\n",
-                "    pop rax\n",
-                "    add rsp, 8\n",       // remove error code
-                "    iretq\n"
-            )
-        );
-    };
-    ($name:ident, $handler:ident, with_error_code) => {
-        global_asm!(
-            concat!(
-                ".global ", stringify!($name), "\n",
-                ".type ", stringify!($name), ", @function\n",
-                stringify!($name), ":\n",
-                // error code already pushed by CPU
-                "    push rax\n",
-                "    push rbx\n",
-                "    push rcx\n",
-                "    push rdx\n",
-                "    push rsi\n",
-                "    push rdi\n",
-                "    push rbp\n",
-                "    push r8\n",
-                "    push r9\n",
-                "    push r10\n",
-                "    push r11\n",
-                "    push r12\n",
-                "    push r13\n",
-                "    push r14\n",
-                "    push r15\n",
-                "    mov rdi, rsp\n",     // pass stack pointer as first arg
-                "    call ", stringify!($handler), "\n",
-                "    pop r15\n",
-                "    pop r14\n",
-                "    pop r13\n",
-                "    pop r12\n",
-                "    pop r11\n",
-                "    pop r10\n",
-                "    pop r9\n",
-                "    pop r8\n",
-                "    pop rbp\n",
-                "    pop rdi\n",
-                "    pop rsi\n",
-                "    pop rdx\n",
-                "    pop rcx\n",
-                "    pop rbx\n",
-                "    pop rax\n",
-                "    add rsp, 8\n",       // remove error code
-                "    iretq\n"
-            )
-        );
-    };
-}
-
-// Generate interrupt stubs
-interrupt_stub!(default_handler_stub, default_handler_impl, no_error_code);
-interrupt_stub!(breakpoint_stub, breakpoint_impl, no_error_code);
-interrupt_stub!(double_fault_stub, double_fault_impl, with_error_code);
-interrupt_stub!(page_fault_stub, page_fault_impl, with_error_code);
-interrupt_stub!(timer_handler_stub, timer_handler_impl, no_error_code);
-interrupt_stub!(keyboard_handler_stub, keyboard_handler_impl, no_error_code);
-
-extern "C" {
-    fn default_handler_stub();
-    fn breakpoint_stub();
-    fn double_fault_stub();
-    fn page_fault_stub();
-    fn timer_handler_stub();
-    fn keyboard_handler_stub();
-}
-
 // Stack layout after our stub saves registers
 #[repr(C)]
 struct InterruptRegs {
@@ -152,6 +42,273 @@ struct InterruptRegs {
     rflags: u64,
     rsp: u64,
     ss: u64,
+}
+
+// Generate assembly stubs for interrupt handlers without error code
+global_asm!(
+    r#"
+.global default_handler_stub
+.type default_handler_stub, @function
+default_handler_stub:
+    push 0
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    mov rdi, rsp
+    call default_handler_impl
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    add rsp, 8
+    iretq
+"#
+);
+
+global_asm!(
+    r#"
+.global breakpoint_stub
+.type breakpoint_stub, @function
+breakpoint_stub:
+    push 0
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    mov rdi, rsp
+    call breakpoint_impl
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    add rsp, 8
+    iretq
+"#
+);
+
+// Generate assembly stubs for interrupt handlers with error code
+global_asm!(
+    r#"
+.global double_fault_stub
+.type double_fault_stub, @function
+double_fault_stub:
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    mov rdi, rsp
+    call double_fault_impl
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    add rsp, 8
+    iretq
+"#
+);
+
+global_asm!(
+    r#"
+.global page_fault_stub
+.type page_fault_stub, @function
+page_fault_stub:
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    mov rdi, rsp
+    call page_fault_impl
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    add rsp, 8
+    iretq
+"#
+);
+
+global_asm!(
+    r#"
+.global timer_handler_stub
+.type timer_handler_stub, @function
+timer_handler_stub:
+    push 0
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    mov rdi, rsp
+    call timer_handler_impl
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    add rsp, 8
+    iretq
+"#
+);
+
+global_asm!(
+    r#"
+.global keyboard_handler_stub
+.type keyboard_handler_stub, @function
+keyboard_handler_stub:
+    push 0
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    mov rdi, rsp
+    call keyboard_handler_impl
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    add rsp, 8
+    iretq
+"#
+);
+
+extern "C" {
+    fn default_handler_stub();
+    fn breakpoint_stub();
+    fn double_fault_stub();
+    fn page_fault_stub();
+    fn timer_handler_stub();
+    fn keyboard_handler_stub();
 }
 
 #[no_mangle]
