@@ -48,6 +48,11 @@ extern "x86-interrupt" fn page_fault(frame: &mut InterruptStackFrame, code: u64)
 
 static mut TICKS: u64 = 0;
 
+/// Get the current timer tick count.
+pub fn get_ticks() -> u64 {
+    unsafe { TICKS }
+}
+
 extern "x86-interrupt" fn timer_handler(_frame: &mut InterruptStackFrame) {
     unsafe {
         TICKS += 1;
@@ -60,8 +65,11 @@ extern "x86-interrupt" fn timer_handler(_frame: &mut InterruptStackFrame) {
 
 extern "x86-interrupt" fn keyboard_handler(_frame: &mut InterruptStackFrame) {
     let scan = unsafe { port::inb(0x60) };
-    if let Some(c) = scancode_to_ascii(scan) {
-        crate::serial::serial_println!("key: {}", c);
+    // Only handle key-down events (bit 7 clear)
+    if scan & 0x80 == 0 {
+        if let Some(c) = scancode_to_ascii(scan) {
+            crate::kb_buffer::on_key(c);
+        }
     }
     unsafe { port::outb(0x20, 0x20) };
 }

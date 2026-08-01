@@ -6,7 +6,7 @@
 
 use core::fmt;
 use crate::serial;
-use crate::spinlock::Spinlock;
+use crate::spinlock::IntSpinlock;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -41,8 +41,8 @@ const HEIGHT: usize = 25;
 const VGA_ADDR: usize = 0xb8000;
 
 pub struct Writer {
-    col: usize,
-    row: usize,
+    pub col: usize,
+    pub row: usize,
     fg: Color,
     bg: Color,
 }
@@ -59,6 +59,11 @@ impl Writer {
 
     fn color_code(&self) -> u8 {
         (self.bg as u8) << 4 | (self.fg as u8)
+    }
+
+    pub fn set_color(&mut self, fg: Color, bg: Color) {
+        self.fg = fg;
+        self.bg = bg;
     }
 
     pub fn clear(&mut self) {
@@ -147,7 +152,7 @@ impl fmt::Write for Writer {
     }
 }
 
-pub static WRITER: Spinlock<Writer> = Spinlock::new(Writer::new());
+pub static WRITER: IntSpinlock<Writer> = IntSpinlock::new(Writer::new());
 
 #[macro_export]
 macro_rules! print {

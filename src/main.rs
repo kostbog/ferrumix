@@ -3,7 +3,7 @@
 //! Entry flow:
 //!   boot.S  -> long mode, then `call kernel_main(magic, mb_info)`
 //!   here    -> initialise drivers, memory, process table, syscall gate,
-//!             VFS, enable interrupts, idle.
+//!             VFS, enable interrupts, launch interactive shell.
 
 #![no_std]
 #![no_main]
@@ -12,12 +12,14 @@ mod boot;
 mod gdt;
 mod idt;
 mod interrupts;
+mod kb_buffer;
 mod memory;
 mod multiboot;
 mod paging;
 mod port;
 mod process;
 mod serial;
+mod shell;
 mod spinlock;
 mod syscall;
 mod vfs;
@@ -57,7 +59,7 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
 
     interrupts::init();
     println!("IDT + PIC + PIT initialised; interrupts enabled");
-    println!("syscall gate: int 0x80 DPL=3 installed (write, exit, getpid)");
+    println!("syscall gate: int 0x80 DPL=3 installed (read, write, open, close, exit, getpid)");
 
     if let Some(f1) = memory::alloc_frame() {
         println!("memory: allocated frame @ {:#x}", f1);
@@ -67,49 +69,11 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
         println!("memory: freed frame @ {:#x} (free list works)", f1);
     }
 
-    println!("testing syscall via int 0x80 ...");
-    unsafe { test_syscall_write(); }
-
-    let pid = unsafe { test_syscall_getpid() };
-    println!("syscall getpid() -> {}", pid);
-
-    println!("custom target: x86_64-ferrumix.json ready (build via --target x86_64-ferrumix.json)");
-
-    println!("Ferrumix is alive. (idle loop; timer ticks on the serial line)");
+    println!("Ferrumix is alive.");
     println!("Unix step complete: ring3 GDT, frame allocator, syscall int 0x80, process table, VFS devfs");
-    loop {
-        unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
-    }
-}
 
-unsafe fn test_syscall_write() {
-    let msg = b"syscall: write via int 0x80 works — hello Unix!\n";
-    let ret: u64;
-    asm!(
-        "int 0x80",
-        in("rax") 1u64,
-        in("rdi") 1u64,
-        in("rsi") msg.as_ptr(),
-        in("rdx") msg.len(),
-        lateout("rax") ret,
-        out("rcx") _,
-        out("r11") _,
-        options(nostack)
-    );
-    crate::serial::serial_println!("test syscall write returned {}", ret);
-}
-
-unsafe fn test_syscall_getpid() -> u64 {
-    let ret: u64;
-    asm!(
-        "int 0x80",
-        in("rax") 39u64,
-        lateout("rax") ret,
-        out("rcx") _,
-        out("r11") _,
-        options(nostack)
-    );
-    ret
+    // Launch the interactive shell
+    shell::run()
 }
 
 #[panic_handler]

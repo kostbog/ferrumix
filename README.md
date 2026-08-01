@@ -5,10 +5,10 @@
 > *ferrum* (Latin for "iron") + *ix* — a Unix clone written in Rust.
 
 Ferrumix is an **x86_64 OS kernel written from scratch**, booted via the
-**Multiboot2** specification and run in QEMU. After the first Unix step it
-is more than a skeleton: it has a frame allocator, paging introspection,
-GDT with ring-3 segments, a process table, `int 0x80` syscall gate, and a
-minimal VFS/devfs — all verified by CI.
+**Multiboot2** specification and run in QEMU.  It has a frame allocator,
+paging introspection, GDT with ring-3 segments, a process table,
+`int 0x80` syscall gate, a minimal VFS/devfs, and an **interactive shell**
+— all verified by CI.
 
 > ⚠️ **A note about building in this environment.** The sandbox where this
 > code was written has no Rust toolchain and no access to Rust/apt mirrors
@@ -34,21 +34,40 @@ minimal VFS/devfs — all verified by CI.
 
 ### Unix step 1 — closer to real Unix
 - **Custom target** `x86_64-ferrumix.json` (kernel code-model, no redzone,
-  no SSE, LLD) — roadmap item 1. Builds with nightly ` -Zbuild-std=core,compiler_builtins`
+  no SSE, LLD) — roadmap item 1. Builds with nightly `-Zbuild-std=core,compiler_builtins`
 - **Physical frame allocator** (`src/memory.rs`): bump + free list (256 entries),
-  4 KiB frames, excludes <1 MiB and kernel image (`__kernel_start`/`__kernel_end`
-  from linker.ld), stats and region dump on serial
+  4 KiB frames, excludes <1 MiB and kernel image, stats and region dump on serial
 - **Paging** (`src/paging.rs`): CR3 read, PML4/PDPT/PD inspection, software
-  virt→phys walk (2 MiB and 1 GiB huge pages supported), base for higher-half
+  virt→phys walk (2 MiB and 1 GiB huge pages supported)
 - **Process table** (`src/process.rs`): 64 slots, atomic PID allocator,
   `ProcessState`, init pid 1, `current_pid()`, count
 - **Syscall interface** (`src/syscall.rs` + assembly stub):
   `syscall_int80_entry` global asm saves all GPRs, calls Rust `syscall_dispatch`,
-  restores and `iretq`. Numbers: 0/60 `exit`, 1 `write`, 39 `getpid`, 12 `brk`
-  (stub). `write` copies user buffer (null/len checks) to VGA+serial.
-  Self-test in `kernel_main` does `int 0x80` write and getpid.
-- **VFS/devfs stub** (`src/vfs.rs`): nodes for `null`, `zero`, `tty`, `ttyS0`,
-  listing on boot, `find_dev` for future `open`
+  restores and `iretq`. Numbers: `read` (0), `write` (1), `open` (2),
+  `close` (3), `brk` (12), `getpid` (39), `exit` (60).
+  `write` copies user buffer to VGA+serial; `read` reads from keyboard buffer.
+- **VFS/devfs** (`src/vfs.rs`): nodes for `null`, `zero`, `tty`, `ttyS0`
+
+### Interactive shell (MVP)
+- **Keyboard driver** (`src/kb_buffer.rs`): interrupt-driven character buffer
+  with proper key-down filtering. Characters are buffered without echo — the
+  shell handles echoing and line editing.
+- **Interrupt-safe locking** (`src/spinlock.rs`): `IntSpinlock<T>` disables
+  interrupts while held, preventing deadlocks between interrupt handlers and
+  the shell's display operations.
+- **Interactive shell** (`src/shell.rs`): prompt `ferrumix> ` on VGA
+  (colored green) + serial. Line editing with backspace. Built-in commands:
+  - `help` — list commands
+  - `clear` — clear screen
+  - `echo TEXT` — print text
+  - `ps` — list processes
+  - `uptime` — system uptime from PIT timer
+  - `mem` — memory statistics (total/used/free frames)
+  - `ls` — list devfs devices
+  - `uname` — system information
+  - `whoami` — current user (root)
+  - `version` — kernel version
+  - `reboot` — PS/2 keyboard controller reset
 
 **Dependencies:** zero external crates. Only `core` + stable Rust
 (`asm!`, `global_asm!`, `extern "x86-interrupt"`).
@@ -99,19 +118,26 @@ vfs: devfs dev/null type=CharDevice
 ...
 VFS initialised: devfs with null, zero, tty
 IDT + PIC + PIT initialised; interrupts enabled
-syscall gate: int 0x80 DPL=3 installed (write, exit, getpid)
+syscall gate: int 0x80 DPL=3 installed (read, write, open, close, exit, getpid)
 memory: allocated frame @ 0x...
 memory: total N used M free K
 memory: freed frame @ 0x...
-testing syscall via int 0x80 ...
-syscall: write via int 0x80 works — hello Unix!
-test syscall write returned 46
-syscall getpid() -> 1
-custom target: x86_64-ferrumix.json ready
-Ferrumix is alive. (idle loop; timer ticks on the serial line)
+Ferrumix is alive.
 Unix step complete: ring3 GDT, frame allocator, syscall int 0x80, process table, VFS devfs
-timer tick 1000
-...
+Type 'help' for a list of commands.
+ferrumix> help
+Ferrumix shell — available commands:
+  help      — show this help
+  clear     — clear the screen
+  echo TEXT — print text
+  ...
+ferrumix> uptime
+uptime: 0h 0m 5s (500 ticks)
+ferrumix> mem
+Memory (4 KiB frames):
+  total: 128000 frames (500 MiB)
+  ...
+ferrumix>
 ```
 
 ## Continuous Integration — all tests & builds on GitHub
@@ -126,13 +152,13 @@ CI jobs:
 - **build-userspace**: builds `userspace/` example (no_std)
 - **boot-test** (debug & release): boots kernel in headless QEMU, asserts:
   `Ferrumix 0.1.0`, `is alive`, `GDT`, `IDT`, `frame allocator`, `paging`,
-  `syscall`, `process`, `VFS`, plus syscall self-test
+  `syscall`, `process`, `VFS`, plus shell prompt (`ferrumix>`)
 - **make-test**: runs `make test` compatibility target
 
 The same tests locally:
 
 ```bash
-make test            # debug boot test with Unix subsystem asserts
+make test            # debug boot test with Unix subsystem + shell asserts
 make test-release    # release boot test
 make fmt
 make clippy
@@ -150,20 +176,22 @@ ferrumix/
 ├── linker.ld             # layout: kernel at 1 MiB, __kernel_start/_end, Multiboot2 first
 ├── Makefile              # build / run / test / fmt / clippy
 ├── src/
-│   ├── main.rs           # entry kernel_main + self-tests for syscall & allocator
+│   ├── main.rs           # entry kernel_main + launch shell
 │   ├── boot.rs/.S        # Multiboot2 header + trampoline into long mode
-│   ├── port.rs           # port I/O (inb/outb/...), hlt/sti/cli
-│   ├── spinlock.rs       # mini spinlock built on atomics
+│   ├── port.rs           # port I/O (inb/outb/...), hlt/sti/cli/pushcli/popcli
+│   ├── spinlock.rs       # Spinlock + IntSpinlock (interrupt-safe)
 │   ├── vga.rs            # text-mode VGA driver + print!/println!
 │   ├── serial.rs         # COM1 + serial_print!/serial_println!
 │   ├── gdt.rs            # GDT (kernel+user) + TSS (IST+RSP0)
 │   ├── idt.rs            # IDT descriptors + lidt, DPL support
-│   ├── interrupts.rs     # exception handlers, PIC, PIT, keyboard, syscall gate install
+│   ├── interrupts.rs     # exception handlers, PIC, PIT, keyboard, syscall gate
+│   ├── kb_buffer.rs      # keyboard character buffer (interrupt → shell)
 │   ├── multiboot.rs      # Multiboot2 mmap parser (regions + total)
 │   ├── memory.rs         # frame allocator (4 KiB, bump+free list)
 │   ├── paging.rs         # paging introspection & virt→phys walk
 │   ├── process.rs        # Unix pid table, process states
-│   ├── syscall.rs        # int 0x80 handler, dispatch, write/getpid/exit/brk
+│   ├── shell.rs          # interactive shell with built-in commands
+│   ├── syscall.rs        # int 0x80 handler: read, write, open, close, exit, getpid, brk
 │   └── vfs.rs            # devfs stub: null, zero, tty, ttyS0
 ├── userspace/            # ring-3 program scaffold using int 0x80 ABI
 │   ├── src/main.rs/_start calling write+exit
@@ -180,12 +208,15 @@ ferrumix/
 3. In long mode the stack is set up and `kernel_main(magic, mb_info)` is called.
 4. The kernel initialises: serial, frame allocator from Multiboot mmap, paging check,
    GDT (kernel+user) + TSS, process table (pid 1), devfs, IDT (exceptions + IRQ +
-   int 0x80 gate), PIC/PIT, enables interrupts, self-tests syscall `write` via
-   `int 0x80`, then idles with `hlt`.
+   int 0x80 gate), PIC/PIT, enables interrupts, prints status, then launches the
+   interactive shell.
+5. The shell prints `ferrumix> ` and waits for keyboard input. Each keystroke is
+   buffered by the keyboard interrupt handler, read by the shell, echoed to VGA,
+   and assembled into a line.  On Enter, the line is dispatched as a command.
 
 ## Next steps
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md): higher-half mapping, per-process page tables,
 context switch & scheduler (round-robin via PIT), `syscall` instruction fast path,
-fork/exec, ramfs, ELF loader, shell and utilities.
+fork/exec, ramfs, ELF loader, more shell commands and utilities.
 ```
