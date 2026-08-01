@@ -1,9 +1,13 @@
 //! Interrupt wiring: exceptions (IDT), the 8259 PIC remap, the PIT timer,
 //! keyboard, and the Unix syscall gate (int 0x80).
+//!
+//! Since `extern "x86-interrupt"` is unstable on stable Rust, we use
+//! assembly wrappers that save/restore registers and call Rust handlers.
 
 use crate::idt;
 use crate::port;
 use core::arch::asm;
+use core::arch::global_asm;
 
 #[repr(C)]
 pub struct InterruptStackFrame {
@@ -14,33 +18,181 @@ pub struct InterruptStackFrame {
     pub ss: u64,
 }
 
-extern "x86-interrupt" fn default_handler(frame: &mut InterruptStackFrame) {
-    crate::serial::serial_println!("EXCEPTION @ {:#x} (default handler)", frame.rip);
+// Assembly macro to generate interrupt stubs
+// For interrupts without error code, we push a dummy error code
+macro_rules! interrupt_stub {
+    ($name:ident, $handler:ident, no_error_code) => {
+        global_asm!(
+            concat!(
+                ".global ", stringify!($name), "\n",
+                ".type ", stringify!($name), ", @function\n",
+                stringify!($name), ":\n",
+                "    push 0\n",           // dummy error code
+                "    push rax\n",
+                "    push rbx\n",
+                "    push rcx\n",
+                "    push rdx\n",
+                "    push rsi\n",
+                "    push rdi\n",
+                "    push rbp\n",
+                "    push r8\n",
+                "    push r9\n",
+                "    push r10\n",
+                "    push r11\n",
+                "    push r12\n",
+                "    push r13\n",
+                "    push r14\n",
+                "    push r15\n",
+                "    mov rdi, rsp\n",     // pass stack pointer as first arg
+                "    call ", stringify!($handler), "\n",
+                "    pop r15\n",
+                "    pop r14\n",
+                "    pop r13\n",
+                "    pop r12\n",
+                "    pop r11\n",
+                "    pop r10\n",
+                "    pop r9\n",
+                "    pop r8\n",
+                "    pop rbp\n",
+                "    pop rdi\n",
+                "    pop rsi\n",
+                "    pop rdx\n",
+                "    pop rcx\n",
+                "    pop rbx\n",
+                "    pop rax\n",
+                "    add rsp, 8\n",       // remove error code
+                "    iretq\n"
+            )
+        );
+    };
+    ($name:ident, $handler:ident, with_error_code) => {
+        global_asm!(
+            concat!(
+                ".global ", stringify!($name), "\n",
+                ".type ", stringify!($name), ", @function\n",
+                stringify!($name), ":\n",
+                // error code already pushed by CPU
+                "    push rax\n",
+                "    push rbx\n",
+                "    push rcx\n",
+                "    push rdx\n",
+                "    push rsi\n",
+                "    push rdi\n",
+                "    push rbp\n",
+                "    push r8\n",
+                "    push r9\n",
+                "    push r10\n",
+                "    push r11\n",
+                "    push r12\n",
+                "    push r13\n",
+                "    push r14\n",
+                "    push r15\n",
+                "    mov rdi, rsp\n",     // pass stack pointer as first arg
+                "    call ", stringify!($handler), "\n",
+                "    pop r15\n",
+                "    pop r14\n",
+                "    pop r13\n",
+                "    pop r12\n",
+                "    pop r11\n",
+                "    pop r10\n",
+                "    pop r9\n",
+                "    pop r8\n",
+                "    pop rbp\n",
+                "    pop rdi\n",
+                "    pop rsi\n",
+                "    pop rdx\n",
+                "    pop rcx\n",
+                "    pop rbx\n",
+                "    pop rax\n",
+                "    add rsp, 8\n",       // remove error code
+                "    iretq\n"
+            )
+        );
+    };
+}
+
+// Generate interrupt stubs
+interrupt_stub!(default_handler_stub, default_handler_impl, no_error_code);
+interrupt_stub!(breakpoint_stub, breakpoint_impl, no_error_code);
+interrupt_stub!(double_fault_stub, double_fault_impl, with_error_code);
+interrupt_stub!(page_fault_stub, page_fault_impl, with_error_code);
+interrupt_stub!(timer_handler_stub, timer_handler_impl, no_error_code);
+interrupt_stub!(keyboard_handler_stub, keyboard_handler_impl, no_error_code);
+
+extern "C" {
+    fn default_handler_stub();
+    fn breakpoint_stub();
+    fn double_fault_stub();
+    fn page_fault_stub();
+    fn timer_handler_stub();
+    fn keyboard_handler_stub();
+}
+
+// Stack layout after our stub saves registers
+#[repr(C)]
+struct InterruptRegs {
+    r15: u64,
+    r14: u64,
+    r13: u64,
+    r12: u64,
+    r11: u64,
+    r10: u64,
+    r9: u64,
+    r8: u64,
+    rbp: u64,
+    rdi: u64,
+    rsi: u64,
+    rdx: u64,
+    rcx: u64,
+    rbx: u64,
+    rax: u64,
+    error_code: u64,
+    rip: u64,
+    cs: u64,
+    rflags: u64,
+    rsp: u64,
+    ss: u64,
+}
+
+#[no_mangle]
+extern "C" fn default_handler_impl(regs: *mut InterruptRegs) {
+    unsafe {
+        crate::serial::serial_println!("EXCEPTION @ {:#x} (default handler)", (*regs).rip);
+    }
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }
 }
 
-extern "x86-interrupt" fn breakpoint(frame: &mut InterruptStackFrame) {
-    crate::serial::serial_println!("BREAKPOINT @ {:#x}", frame.rip);
+#[no_mangle]
+extern "C" fn breakpoint_impl(regs: *mut InterruptRegs) {
+    unsafe {
+        crate::serial::serial_println!("BREAKPOINT @ {:#x}", (*regs).rip);
+    }
 }
 
-extern "x86-interrupt" fn double_fault(frame: &mut InterruptStackFrame, code: u64) {
-    crate::serial::serial_println!("DOUBLE FAULT (error={}) @ {:#x}", code, frame.rip);
+#[no_mangle]
+extern "C" fn double_fault_impl(regs: *mut InterruptRegs) {
+    unsafe {
+        crate::serial::serial_println!("DOUBLE FAULT (error={}) @ {:#x}", (*regs).error_code, (*regs).rip);
+    }
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }
 }
 
-extern "x86-interrupt" fn page_fault(frame: &mut InterruptStackFrame, code: u64) {
+#[no_mangle]
+extern "C" fn page_fault_impl(regs: *mut InterruptRegs) {
     let cr2: u64;
     unsafe { asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack)) };
-    crate::serial::serial_println!(
-        "PAGE FAULT @ {:#x} (cr2={:#x}, err={:#x})",
-        frame.rip,
-        cr2,
-        code
-    );
+    unsafe {
+        crate::serial::serial_println!(
+            "PAGE FAULT @ {:#x} (cr2={:#x}, err={:#x})",
+            (*regs).rip,
+            cr2,
+            (*regs).error_code
+        );
+    }
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }
@@ -53,7 +205,8 @@ pub fn get_ticks() -> u64 {
     unsafe { TICKS }
 }
 
-extern "x86-interrupt" fn timer_handler(_frame: &mut InterruptStackFrame) {
+#[no_mangle]
+extern "C" fn timer_handler_impl(_regs: *mut InterruptRegs) {
     unsafe {
         TICKS += 1;
         if TICKS % 1000 == 0 {
@@ -63,7 +216,8 @@ extern "x86-interrupt" fn timer_handler(_frame: &mut InterruptStackFrame) {
     unsafe { port::outb(0x20, 0x20) };
 }
 
-extern "x86-interrupt" fn keyboard_handler(_frame: &mut InterruptStackFrame) {
+#[no_mangle]
+extern "C" fn keyboard_handler_impl(_regs: *mut InterruptRegs) {
     let scan = unsafe { port::inb(0x60) };
     // Only handle key-down events (bit 7 clear)
     if scan & 0x80 == 0 {
@@ -136,15 +290,15 @@ fn scancode_to_ascii(s: u8) -> Option<char> {
 pub fn init() {
     unsafe {
         for i in 0..32 {
-            idt::IDT[i].set_handler(default_handler as usize as u64);
+            idt::IDT[i].set_handler(default_handler_stub as usize as u64);
         }
-        idt::IDT[3].set_handler(breakpoint as usize as u64);
-        idt::IDT[8].set_handler(double_fault as usize as u64);
+        idt::IDT[3].set_handler(breakpoint_stub as usize as u64);
+        idt::IDT[8].set_handler(double_fault_stub as usize as u64);
         idt::IDT[8].ist = 1;
-        idt::IDT[14].set_handler(page_fault as usize as u64);
+        idt::IDT[14].set_handler(page_fault_stub as usize as u64);
 
-        idt::IDT[32].set_handler(timer_handler as usize as u64);
-        idt::IDT[33].set_handler(keyboard_handler as usize as u64);
+        idt::IDT[32].set_handler(timer_handler_stub as usize as u64);
+        idt::IDT[33].set_handler(keyboard_handler_stub as usize as u64);
 
         idt::IDT[0x80].set_handler_with_dpl(crate::syscall::syscall_int80_entry as usize as u64, 3);
 
