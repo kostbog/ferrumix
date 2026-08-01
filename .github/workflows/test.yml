@@ -14,29 +14,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-none
           components: llvm-tools-preview,rustfmt,clippy
+
       - uses: Swatinem/rust-cache@v2
+
       - name: Install QEMU
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86
+
       - name: Run make test
-        run: make test    strategy:
+        run: make test
+
+  build-matrix:
+    name: Build ${{ matrix.target }} (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    strategy:
       fail-fast: false
       matrix:
         target: [x86_64-unknown-none]
         profile: [debug, release]
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-none
           components: llvm-tools-preview
+
       - uses: Swatinem/rust-cache@v2
+
       - name: Build (${{ matrix.profile }})
         run: |
           if [ "${{ matrix.profile }}" = "release" ]; then
@@ -44,6 +57,7 @@ jobs:
           else
             cargo build --target ${{ matrix.target }}
           fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -57,16 +71,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: x86_64-unknown-none
           components: llvm-tools-preview, rust-src
+
       - uses: Swatinem/rust-cache@v2
+
       - name: Build with custom target JSON
         run: |
           cargo build --target x86_64-ferrumix.json -Zbuild-std=core,compiler_builtins --release || \
           cargo build --target x86_64-ferrumix.json -Zbuild-std=core,compiler_builtins
+
       - name: Upload custom target artifact
         uses: actions/upload-artifact@v4
         with:
@@ -78,12 +96,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-none
           components: llvm-tools-preview
+
       - uses: Swatinem/rust-cache@v2
+
       - name: Build userspace (no_std)
         working-directory: userspace
         run: |
@@ -98,18 +119,23 @@ jobs:
       fail-fast: false
       matrix:
         profile: [debug, release]
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-none
           components: llvm-tools-preview
+
       - uses: Swatinem/rust-cache@v2
+
       - name: Install QEMU
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86
+
       - name: Build kernel ${{ matrix.profile }}
         run: |
           if [ "${{ matrix.profile }}" = "release" ]; then
@@ -119,21 +145,62 @@ jobs:
             cargo build --target x86_64-unknown-none
             echo "KERNEL=target/x86_64-unknown-none/debug/ferrumix" >> $GITHUB_ENV
           fi
+
       - name: Boot test headless (banner + alive + unix subsystems)
         run: |
           echo "Using kernel $KERNEL"
           out=$(timeout 20 qemu-system-x86_64 -kernel $KERNEL -serial stdio -display none -monitor none 2>&1 || true)
           printf '%s\n' "$out"
-          echo "$out" | grep -q "Ferrumix 0.1.0" || { echo "FAIL: banner not found"; exit 1; }
-          echo "$out" | grep -q "is alive" || { echo "FAIL: idle loop not reached"; exit 1; }
-          echo "$out" | grep -q "GDT" || { echo "FAIL: GDT not initialized"; exit 1; }
-          echo "$out" | grep -q "IDT" || { echo "FAIL: IDT not initialized"; exit 1; }
-          echo "$out" | grep -q "frame allocator" || { echo "FAIL: frame allocator missing"; exit 1; }
-          echo "$out" | grep -q "paging" || { echo "FAIL: paging missing"; exit 1; }
-          echo "$out" | grep -q "syscall" || { echo "FAIL: syscall gate missing"; exit 1; }
-          echo "$out" | grep -q "process" || { echo "FAIL: process table missing"; exit 1; }
-          echo "$out" | grep -q "VFS" || { echo "FAIL: VFS missing"; exit 1; }
-          echo "$out" | grep -q "syscall.*write.*works\|Unix step" || { echo "WARN: syscall self-test not seen but continuing"; }
+
+          echo "$out" | grep -q "Ferrumix 0.1.0" || {
+            echo "FAIL: banner not found"
+            exit 1
+          }
+
+          echo "$out" | grep -q "is alive" || {
+            echo "FAIL: idle loop not reached"
+            exit 1
+          }
+
+          echo "$out" | grep -q "GDT" || {
+            echo "FAIL: GDT not initialized"
+            exit 1
+          }
+
+          echo "$out" | grep -q "IDT" || {
+            echo "FAIL: IDT not initialized"
+            exit 1
+          }
+
+          echo "$out" | grep -q "frame allocator" || {
+            echo "FAIL: frame allocator missing"
+            exit 1
+          }
+
+          echo "$out" | grep -q "paging" || {
+            echo "FAIL: paging missing"
+            exit 1
+          }
+
+          echo "$out" | grep -q "syscall" || {
+            echo "FAIL: syscall gate missing"
+            exit 1
+          }
+
+          echo "$out" | grep -q "process" || {
+            echo "FAIL: process table missing"
+            exit 1
+          }
+
+          echo "$out" | grep -q "VFS" || {
+            echo "FAIL: VFS missing"
+            exit 1
+          }
+
+          echo "$out" | grep -q "syscall.*write.*works\|Unix step" || {
+            echo "WARN: syscall self-test not seen but continuing"
+          }
+
           echo "BOOT TEST ${{ matrix.profile }} PASSED"
 
   make-test:
@@ -141,14 +208,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-none
           components: llvm-tools-preview
+
       - uses: Swatinem/rust-cache@v2
+
       - name: Install QEMU
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86
+
       - name: Run make test
         run: make test
