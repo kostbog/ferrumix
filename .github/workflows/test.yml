@@ -1,9 +1,4 @@
-name: CI
-
-# All tests and builds run on GitHub Actions. The kernel is freestanding
-# (no_std), so we build it and boot it under headless QEMU and assert output.
-# This workflow is the single source of truth for verification — local
-# `make test` mirrors the same checks but CI is authoritative.
+name: Test
 
 on:
   push:
@@ -14,27 +9,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  lint:
-    name: Lint (fmt + clippy)
+  test:
+    name: make test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-none
           components: llvm-tools-preview,rustfmt,clippy
       - uses: Swatinem/rust-cache@v2
-      - name: cargo fmt check
-        run: cargo fmt --all --check
-      - name: cargo clippy (freestanding kernel)
-        continue-on-error: true
-        run: cargo clippy --target x86_64-unknown-none -- -D warnings || true
-
-  build-matrix:
-    name: Build kernel ${{ matrix.profile }} (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    strategy:
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86
+      - name: Run make test
+        run: make test    strategy:
       fail-fast: false
       matrix:
         target: [x86_64-unknown-none]
