@@ -13,6 +13,7 @@ mod gdt;
 mod idt;
 mod interrupts;
 mod kb_buffer;
+mod mem;
 mod memory;
 mod multiboot;
 mod paging;
