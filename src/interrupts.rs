@@ -11,6 +11,7 @@ use core::sync::atomic::{AtomicU64, Ordering};
 
 global_asm!(
     r#"
+.section .text
 .global exception_entry
 exception_entry:
     push rax

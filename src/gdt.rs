@@ -89,7 +89,7 @@ pub fn init() {
             limit: (core::mem::size_of::<[u64; 7]>() - 1) as u16,
             base: &GDT as *const _ as u64,
         };
-        asm!("lgdt ({0})", in(reg) &desc, options(nostack, preserves_flags));
+        asm!("lgdt [{0}]", in(reg) &desc, options(nostack, preserves_flags));
         asm!(
             "mov ds, ax; mov es, ax; mov ss, ax",
             in("ax") KERNEL_DATA_SELECTOR,

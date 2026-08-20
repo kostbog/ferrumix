@@ -60,5 +60,5 @@ pub unsafe fn load() {
         limit: (core::mem::size_of::<[Entry; 256]>() - 1) as u16,
         base: &IDT as *const _ as u64,
     };
-    asm!("lidt ({0})", in(reg) &desc, options(nostack, preserves_flags));
+    asm!("lidt [{0}]", in(reg) &desc, options(nostack, preserves_flags));
 }

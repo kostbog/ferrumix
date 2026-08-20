@@ -43,6 +43,7 @@ pub struct SyscallStack {
 
 core::arch::global_asm!(
     r#"
+    .section .text
     .global syscall_int80_entry
     .type syscall_int80_entry, @function
 syscall_int80_entry:

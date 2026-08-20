@@ -5,4 +5,4 @@
 //! is the very first instruction executed by the CPU after the bootloader
 //! hands over, and it eventually calls `kernel_main` defined in `main.rs`.
 
-core::arch::global_asm!(include_str!("boot.S"));
+core::arch::global_asm!(include_str!("boot.S"), options(att_syntax));
