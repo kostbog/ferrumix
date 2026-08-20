@@ -33,6 +33,9 @@ SECTIONS
         *(COMMON)
     }
 
+    /* End of bytes present in the kernel file (Multiboot1 a.out kludge). */
+    __kernel_load_end = .;
+
     .bss : ALIGN(4K) {
         *(COMMON)
         *(.bss .bss.*)

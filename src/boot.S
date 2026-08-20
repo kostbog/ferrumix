@@ -18,11 +18,21 @@
 .set CHECKSUM, (0 - (MAGIC + ARCH + HDR_LEN)) & 0xFFFFFFFF
 
 .section .multiboot2, "a"
-/* Multiboot 1 compatibility header for QEMU's direct -kernel loader. */
+/*
+ * Multiboot 1 compatibility header for QEMU's direct -kernel loader.
+ * Bit 16 supplies flat-image load addresses so QEMU can load our ELF64 file
+ * even though execution begins in 32-bit protected mode.
+ */
 .align 8
+mb1_header:
 .long 0x1BADB002
-.long 0x00000002                /* request memory information */
-.long -(0x1BADB002 + 0x00000002)
+.long 0x00010002                /* address fields + memory information */
+.long -(0x1BADB002 + 0x00010002)
+.long mb1_header                /* header_addr */
+.long __kernel_start            /* load_addr */
+.long __kernel_load_end         /* load_end_addr */
+.long __kernel_end              /* bss_end_addr */
+.long _start                    /* entry_addr */
 
 /* Native Multiboot 2 header used by modern bootloaders such as GRUB. */
 .align 8
