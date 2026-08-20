@@ -11,8 +11,6 @@ use core::sync::atomic::{AtomicU64, Ordering};
 
 global_asm!(
     r#"
-.intel_syntax noprefix
-
 .global exception_entry
 exception_entry:
     push rax
@@ -201,7 +199,7 @@ unsafe fn remap_pic() {
 }
 
 unsafe fn init_pit() {
-    let divisor: u16 = 1193182 / 100;
+    let divisor = (1_193_182u32 / 100) as u16;
     port::outb(0x43, 0x36);
     port::outb(0x40, (divisor & 0xFF) as u8);
     port::outb(0x40, (divisor >> 8) as u8);
