@@ -18,23 +18,6 @@
 .set CHECKSUM, (0 - (MAGIC + ARCH + HDR_LEN)) & 0xFFFFFFFF
 
 .section .multiboot2, "a"
-/*
- * Multiboot 1 compatibility header for QEMU's direct -kernel loader.
- * Bit 16 supplies flat-image load addresses so QEMU can load our ELF64 file
- * even though execution begins in 32-bit protected mode.
- */
-.align 8
-mb1_header:
-.long 0x1BADB002
-.long 0x00010002                /* address fields + memory information */
-.long -(0x1BADB002 + 0x00010002)
-.long mb1_header                /* header_addr */
-.long __kernel_start            /* load_addr */
-.long __kernel_load_end         /* load_end_addr */
-.long __kernel_end              /* bss_end_addr */
-.long _start                    /* entry_addr */
-
-/* Native Multiboot 2 header used by modern bootloaders such as GRUB. */
 .align 8
 mb2_start:
     .long MAGIC
@@ -59,33 +42,8 @@ mb2_end:
 .global _start
 .code32
 _start:
-    cli
     /* Preserve boot args (EAX=magic, EBX=mb_info) in callee-saved regs. */
     movl %eax, %ebp
-
-    /* Initialise COM1 early so failures in the mode switch are observable. */
-    movw $0x3F9, %dx
-    xorb %al, %al
-    outb %al, %dx
-    movw $0x3FB, %dx
-    movb $0x80, %al
-    outb %al, %dx
-    movw $0x3F8, %dx
-    movb $0x03, %al
-    outb %al, %dx
-    movw $0x3F9, %dx
-    xorb %al, %al
-    outb %al, %dx
-    movw $0x3FB, %dx
-    movb $0x03, %al
-    outb %al, %dx
-    movw $0x3FA, %dx
-    movb $0xC7, %al
-    outb %al, %dx
-    movw $0x3F8, %dx
-    movb $'1', %al
-    outb %al, %dx
-
     /* Set up our own stack (identity-mapped region). */
     movl $boot_stack_top, %esp
 
@@ -157,10 +115,6 @@ long_mode_entry:
 
     /* Set the 64-bit stack. */
     movq $boot_stack_top, %rsp
-
-    movw $0x3F8, %dx
-    movb $'2', %al
-    outb %al, %dx
 
     /* Pass arguments to kernel_main(magic, mb_info) via C ABI regs. */
     movl %ebp, %edi              /* 1st arg: multiboot2 magic */

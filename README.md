@@ -23,8 +23,7 @@ paging introspection, GDT with ring-3 segments, a process table,
 
 ### Boot & low level
 - 32→64-bit trampoline and enabling long mode (paging) — `src/boot.S`
-- Multiboot2 header for GRUB plus a Multiboot1 compatibility header for QEMU's
-  direct `-kernel` loader; both memory-map formats use one kernel interface
+- Multiboot2 header, booted via `qemu-system-x86_64 -kernel`
 - Text-mode VGA driver (0xB8000) + mirroring to the serial port
 - GDT + TSS (IST stack for double fault, RSP0 for ring3→ring0) **with user
   code/data segments** (DPL3) — 0x18/0x20 — ready for ring 3
