@@ -61,6 +61,33 @@ mb2_end:
 _start:
     /* Preserve boot args (EAX=magic, EBX=mb_info) in callee-saved regs. */
     movl %eax, %ebp
+
+    /* Initialise COM1 early so failures in the mode switch are observable. */
+    movw $0x3F9, %dx
+    xorb %al, %al
+    outb %al, %dx
+    movw $0x3FB, %dx
+    movb $0x80, %al
+    outb %al, %dx
+    movw $0x3F8, %dx
+    movb $0x03, %al
+    outb %al, %dx
+    movw $0x3F9, %dx
+    xorb %al, %al
+    outb %al, %dx
+    movw $0x3FB, %dx
+    movb $0x03, %al
+    outb %al, %dx
+    movw $0x3FA, %dx
+    movb $0xC7, %al
+    outb %al, %dx
+    movw $0x3F9, %dx
+    movb $0x01, %al
+    outb %al, %dx
+    movw $0x3F8, %dx
+    movb $'1', %al
+    outb %al, %dx
+
     /* Set up our own stack (identity-mapped region). */
     movl $boot_stack_top, %esp
 
@@ -132,6 +159,10 @@ long_mode_entry:
 
     /* Set the 64-bit stack. */
     movq $boot_stack_top, %rsp
+
+    movw $0x3F8, %dx
+    movb $'2', %al
+    outb %al, %dx
 
     /* Pass arguments to kernel_main(magic, mb_info) via C ABI regs. */
     movl %ebp, %edi              /* 1st arg: multiboot2 magic */
