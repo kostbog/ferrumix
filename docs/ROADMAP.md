@@ -6,7 +6,7 @@ Each item is a separate, well-scoped step. Checked items are done.
 
 ## 1. Memory and processes (ring 3)
 - [x] Custom `target.json` (`x86_64-ferrumix`) instead of just `unknown-none`.
-      File exists, builds with nightly + `-Zbuild-std`. Default stays
+      File exists, builds with nightly + `-Zjson-target-spec -Zbuild-std`. Default stays
       `x86_64-unknown-none` for stable compatibility, CI builds both.
 - [x] Frame allocator on top of Multiboot2 mmap (bump + free list, 4 KiB).
       `src/memory.rs` — `alloc_frame`, `free_frame`, stats, kernel exclusion.

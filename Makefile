@@ -19,8 +19,8 @@ build-release:
 	cargo build --target $(TARGET) --release
 
 build-custom:
-	cargo +nightly build --target $(CUSTOM_TARGET) -Zbuild-std=core,compiler_builtins
-	cargo +nightly build --target $(CUSTOM_TARGET) -Zbuild-std=core,compiler_builtins --release || true
+	cargo +nightly build --target $(CUSTOM_TARGET) -Zjson-target-spec -Zbuild-std=core,compiler_builtins
+	cargo +nightly build --target $(CUSTOM_TARGET) -Zjson-target-spec -Zbuild-std=core,compiler_builtins --release || true
 
 # ── Run ────────────────────────────────────────────────────────────────
 

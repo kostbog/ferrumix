@@ -35,11 +35,11 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
 
     println!("Ferrumix 0.1.0 — a tiny Unix-like kernel in Rust");
     println!("boot magic: {:#x}, multiboot info @ {:#x}", magic, mb_info);
-    if magic != 0x36d76289 {
-        println!("WARNING: unexpected Multiboot2 magic");
+    if magic != multiboot::MULTIBOOT1_MAGIC && magic != multiboot::MULTIBOOT2_MAGIC {
+        println!("WARNING: unexpected Multiboot magic");
     }
 
-    let info = unsafe { multiboot::parse(mb_info as usize) };
+    let info = unsafe { multiboot::parse(mb_info as usize, magic) };
     println!(
         "detected usable RAM: {} MiB ({} regions)",
         info.usable_memory / (1024 * 1024),

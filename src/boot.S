@@ -18,6 +18,13 @@
 .set CHECKSUM, (0 - (MAGIC + ARCH + HDR_LEN)) & 0xFFFFFFFF
 
 .section .multiboot2, "a"
+/* Multiboot 1 compatibility header for QEMU's direct -kernel loader. */
+.align 8
+.long 0x1BADB002
+.long 0x00000002                /* request memory information */
+.long -(0x1BADB002 + 0x00000002)
+
+/* Native Multiboot 2 header used by modern bootloaders such as GRUB. */
 .align 8
 mb2_start:
     .long MAGIC

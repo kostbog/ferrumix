@@ -34,7 +34,7 @@ convention) — caller-save.
 # stable — uses x86_64-unknown-none (works, freestanding)
 cargo build --target x86_64-unknown-none --manifest-path userspace/Cargo.toml
 # custom Unix target — nightly + build-std (matches kernel's custom target)
-cargo +nightly build --target x86_64-ferrumix.json -Zbuild-std=core,compiler_builtins --manifest-path userspace/Cargo.toml
+cargo +nightly build --target x86_64-ferrumix.json -Zjson-target-spec -Zbuild-std=core,compiler_builtins --manifest-path userspace/Cargo.toml
 ```
 
 Eventually the kernel's ELF loader will map these binaries into a new process

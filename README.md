@@ -23,7 +23,8 @@ paging introspection, GDT with ring-3 segments, a process table,
 
 ### Boot & low level
 - 32→64-bit trampoline and enabling long mode (paging) — `src/boot.S`
-- Multiboot2 header, booted via `qemu-system-x86_64 -kernel`
+- Multiboot2 header for GRUB plus a Multiboot1 compatibility header for QEMU's
+  direct `-kernel` loader; both memory-map formats use one kernel interface
 - Text-mode VGA driver (0xB8000) + mirroring to the serial port
 - GDT + TSS (IST stack for double fault, RSP0 for ring3→ring0) **with user
   code/data segments** (DPL3) — 0x18/0x20 — ready for ring 3
@@ -34,7 +35,7 @@ paging introspection, GDT with ring-3 segments, a process table,
 
 ### Unix step 1 — closer to real Unix
 - **Custom target** `x86_64-ferrumix.json` (kernel code-model, no redzone,
-  no SSE, LLD) — roadmap item 1. Builds with nightly `-Zbuild-std=core,compiler_builtins`
+  no SSE, LLD) — roadmap item 1. Builds with nightly `-Zjson-target-spec -Zbuild-std=core,compiler_builtins`
 - **Physical frame allocator** (`src/memory.rs`): bump + free list (256 entries),
   4 KiB frames, excludes <1 MiB and kernel image, stats and region dump on serial
 - **Paging** (`src/paging.rs`): CR3 read, PML4/PDPT/PD inspection, software
@@ -90,7 +91,7 @@ cargo build --target x86_64-unknown-none
 # 3. Build with custom Unix target (nightly needed)
 rustup toolchain install nightly
 rustup component add rust-src --toolchain nightly
-cargo +nightly build --target x86_64-ferrumix.json -Zbuild-std=core,compiler_builtins
+cargo +nightly build --target x86_64-ferrumix.json -Zjson-target-spec -Zbuild-std=core,compiler_builtins
 
 # 4. Run in QEMU
 #    - graphical mode (VGA window + serial in the terminal):
@@ -149,7 +150,7 @@ authoritative verification. Local `make test` mirrors the same checks for conven
 CI jobs:
 - **lint**: `cargo fmt --all --check` + `clippy` (freestanding, non-blocking)
 - **build-matrix**: debug & release for `x86_64-unknown-none`, artifacts uploaded
-- **build-custom-target**: builds `x86_64-ferrumix.json` with nightly + `-Zbuild-std`
+- **build-custom-target**: builds `x86_64-ferrumix.json` with nightly + `-Zjson-target-spec -Zbuild-std`
 - **build-userspace**: builds `userspace/` example (no_std)
 - **boot-test** (debug & release): boots kernel in headless QEMU, asserts:
   `Ferrumix 0.1.0`, `is alive`, `GDT`, `IDT`, `frame allocator`, `paging`,
