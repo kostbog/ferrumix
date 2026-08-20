@@ -40,7 +40,7 @@ mb2_end:
 .section .text
 .align 8
 .global _start
-bits 32
+.code32
 _start:
     /* Preserve boot args (EAX=magic, EBX=mb_info) in callee-saved regs. */
     movl %eax, %ebp
