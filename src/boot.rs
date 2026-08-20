@@ -1,8 +1,6 @@
 //! Boot trampoline (Multiboot2 entry + long-mode switch).
 //!
-//! The actual assembly lives in `boot.S`; we pull it into the crate here so it
-//! is compiled and linked together with the Rust code. `_start` from that file
-//! is the very first instruction executed by the CPU after the bootloader
-//! hands over, and it eventually calls `kernel_main` defined in `main.rs`.
-
-core::arch::global_asm!(include_str!("boot.S"), options(att_syntax));
+//! `build.rs` assembles `boot.S` as a mixed `.code32`/`.code64` object and
+//! passes it to the linker. Keeping the trampoline in a separate assembler
+//! input is required because Rust's x86_64 `global_asm!` rejects instructions
+//! that execute before long mode even when they are inside a `.code32` block.
