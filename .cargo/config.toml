@@ -7,14 +7,16 @@
 target = "x86_64-unknown-none"
 
 [target.x86_64-unknown-none]
-# We provide our own linker script (see linker.ld) which lays out the kernel
-# at 1 MiB physical and keeps the Multiboot2 header at the very front.
+# The kernel is linked at a fixed 1 MiB physical address. In particular, the
+# 32-bit boot trampoline cannot use PIE relocations before paging is enabled.
 rustflags = [
+  "-C", "relocation-model=static",
   "-C", "link-arg=-Tlinker.ld",
 ]
 
 [target.x86_64-ferrumix]
 rustflags = [
+  "-C", "relocation-model=static",
   "-C", "link-arg=-Tlinker.ld",
 ]
 
@@ -23,5 +25,6 @@ rustflags = [
 # generic, but specifying both triples ensures linker script still used).
 [target.'cfg(target_os = "none")']
 rustflags = [
+  "-C", "relocation-model=static",
   "-C", "link-arg=-Tlinker.ld",
 ]
