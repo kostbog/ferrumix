@@ -4,9 +4,9 @@
 //! Every write is mirrored to the serial port as well, so a headless QEMU
 //! (`-serial stdio -display none`) still shows all kernel output.
 
-use core::fmt;
 use crate::serial;
 use crate::spinlock::IntSpinlock;
+use core::fmt;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, PartialEq, Eq)]

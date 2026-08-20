@@ -52,7 +52,11 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
     println!("GDT + TSS initialised (kernel + user segments, IST)");
 
     process::init();
-    println!("process table: pid {} running, {} total", process::current_pid(), process::process_count());
+    println!(
+        "process table: pid {} running, {} total",
+        process::current_pid(),
+        process::process_count()
+    );
 
     vfs::init();
     println!("VFS initialised: devfs with null, zero, tty");

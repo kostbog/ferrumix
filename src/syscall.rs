@@ -183,8 +183,16 @@ fn do_write(fd: usize, buf_ptr: *const u8, len: usize) -> u64 {
 }
 
 fn do_exit(code: usize) -> u64 {
-    crate::serial_println!("syscall: exit({}) pid={}", code, crate::process::current_pid());
-    crate::println!("process exit({}) via syscall pid={}", code, crate::process::current_pid());
+    crate::serial_println!(
+        "syscall: exit({}) pid={}",
+        code,
+        crate::process::current_pid()
+    );
+    crate::println!(
+        "process exit({}) via syscall pid={}",
+        code,
+        crate::process::current_pid()
+    );
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }

@@ -40,7 +40,9 @@ pub unsafe fn inl(port: u16) -> u32 {
 
 /// A short delay used after programming the PIC/PS2 hardware.
 pub fn io_wait() {
-    unsafe { outb(0x80, 0); }
+    unsafe {
+        outb(0x80, 0);
+    }
 }
 
 /// Halt the CPU until the next interrupt.

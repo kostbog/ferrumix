@@ -7,8 +7,8 @@
 //! Frame size is 4 KiB.  The kernel image (1 MiB .. __kernel_end) and low
 //! memory <1 MiB (where BIOS / Multiboot / VGA etc. live) are excluded.
 
-use crate::spinlock::Spinlock;
 use crate::multiboot::Info;
+use crate::spinlock::Spinlock;
 
 pub const FRAME_SIZE: u64 = 4096;
 

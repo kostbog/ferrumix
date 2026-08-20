@@ -1,9 +1,9 @@
 //! COM1 serial port (0x3F8) writer, used both for debug output and as the
 //! console mirror in headless QEMU. Implements `core::fmt::Write`.
 
-use core::fmt;
 use crate::port;
 use crate::spinlock::Spinlock;
+use core::fmt;
 
 pub struct SerialWriter {}
 

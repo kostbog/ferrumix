@@ -117,6 +117,8 @@ impl<'a, T> Drop for IntSpinlockGuard<'a, T> {
     fn drop(&mut self) {
         self.lock.locked.store(false, Ordering::Release);
         // Re-enable interrupts if they were enabled before we acquired the lock.
-        unsafe { crate::port::popcli(self.was_enabled); }
+        unsafe {
+            crate::port::popcli(self.was_enabled);
+        }
     }
 }

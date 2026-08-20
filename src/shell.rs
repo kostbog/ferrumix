@@ -169,8 +169,16 @@ fn cmd_mem() {
         total,
         total * frame_size_kib / 1024
     );
-    crate::println!("  used:  {} frames ({} MiB)", used, used * frame_size_kib / 1024);
-    crate::println!("  free:  {} frames ({} MiB)", free, free * frame_size_kib / 1024);
+    crate::println!(
+        "  used:  {} frames ({} MiB)",
+        used,
+        used * frame_size_kib / 1024
+    );
+    crate::println!(
+        "  free:  {} frames ({} MiB)",
+        free,
+        free * frame_size_kib / 1024
+    );
 }
 
 fn cmd_whoami() {
