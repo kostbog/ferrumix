@@ -49,6 +49,8 @@ Each item is a separate, well-scoped step. Checked items are done.
       no-echo design (shell handles echo).
 - [x] **Interrupt-safe spinlock** (`IntSpinlock<T>`): disables interrupts
       while held, prevents deadlocks between IRQ handlers and shell display.
+- [x] Stable-Rust interrupt entry stubs: assembly preserves GPRs and calls
+      C-ABI Rust handlers without the experimental `x86-interrupt` ABI.
 - [ ] `init` (pid 1): mounts the VFS, starts the shell (currently shell runs
       directly from kernel_main).
 - [ ] Utilities as separate binaries: `ls`, `cat`, `echo`, `ps`, `kill`, `mkdir`, `rm`

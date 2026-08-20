@@ -30,6 +30,7 @@ pub enum Color {
     White = 15,
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct ScreenChar {
     ascii: u8,

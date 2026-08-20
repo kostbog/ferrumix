@@ -185,7 +185,7 @@ ferrumix/
 │   ├── serial.rs         # COM1 + serial_print!/serial_println!
 │   ├── gdt.rs            # GDT (kernel+user) + TSS (IST+RSP0)
 │   ├── idt.rs            # IDT descriptors + lidt, DPL support
-│   ├── interrupts.rs     # exception handlers, PIC, PIT, keyboard, syscall gate
+│   ├── interrupts.rs     # assembly IRQ stubs, exceptions, PIC/PIT, keyboard
 │   ├── kb_buffer.rs      # keyboard character buffer (interrupt → shell)
 │   ├── multiboot.rs      # Multiboot2 mmap parser (regions + total)
 │   ├── memory.rs         # frame allocator (4 KiB, bump+free list)

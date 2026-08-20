@@ -85,20 +85,20 @@ pub unsafe fn translate_virt(virt: u64) -> Option<u64> {
 
 pub fn init() {
     let cr3 = current_pml4_addr();
-    crate::serial::serial_println!("paging: CR3={:#x}, PML4 at {:#x}", cr3, cr3);
+    crate::serial_println!("paging: CR3={:#x}, PML4 at {:#x}", cr3, cr3);
     unsafe {
         let pml4e0 = pml4_table[0];
-        crate::serial::serial_println!("paging: PML4[0]={:#x}", pml4e0);
-        crate::serial::serial_println!("paging: PDPT[0]={:#x}", pdpt[0]);
-        crate::serial::serial_println!("paging: PD[0]={:#x} .. PD[1]={:#x}", pd_table[0], pd_table[1]);
+        crate::serial_println!("paging: PML4[0]={:#x}", pml4e0);
+        crate::serial_println!("paging: PDPT[0]={:#x}", pdpt[0]);
+        crate::serial_println!("paging: PD[0]={:#x} .. PD[1]={:#x}", pd_table[0], pd_table[1]);
     }
     unsafe {
         if let Some(phys) = translate_virt(0x100000) {
-            crate::serial::serial_println!("paging: virt 0x100000 -> phys {:#x} (expected 0x100000)", phys);
+            crate::serial_println!("paging: virt 0x100000 -> phys {:#x} (expected 0x100000)", phys);
         }
         if let Some(phys) = translate_virt(0xb8000) {
-            crate::serial::serial_println!("paging: virt 0xb8000 -> phys {:#x} (VGA)", phys);
+            crate::serial_println!("paging: virt 0xb8000 -> phys {:#x} (VGA)", phys);
         }
     }
-    crate::serial::serial_println!("paging: identity mapping for first 1 GiB active");
+    crate::serial_println!("paging: identity mapping for first 1 GiB active");
 }

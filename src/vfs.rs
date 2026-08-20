@@ -63,7 +63,7 @@ impl DevFs {
     fn list(&self) {
         for i in 0..self.count {
             if let Some(n) = self.nodes[i] {
-                crate::serial::serial_println!("vfs: devfs {}/{} type={:?}", "dev", n.name, n.ty);
+                crate::serial_println!("vfs: devfs {}/{} type={:?}", "dev", n.name, n.ty);
             }
         }
     }
@@ -78,9 +78,9 @@ pub fn init() {
     fs.add(Node::dev("tty", 5, 0));
     fs.add(Node::dev("ttyS0", 4, 64));
     drop(fs);
-    crate::serial::serial_println!("vfs: devfs initialised");
+    crate::serial_println!("vfs: devfs initialised");
     DEVFS.lock().list();
-    crate::serial::serial_println!("vfs: ramfs placeholder — / mounts as tmpfs (future)");
+    crate::serial_println!("vfs: ramfs placeholder — / mounts as tmpfs (future)");
 }
 
 pub fn find_dev(name: &str) -> Option<Node> {

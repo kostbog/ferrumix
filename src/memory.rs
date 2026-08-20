@@ -8,7 +8,7 @@
 //! memory <1 MiB (where BIOS / Multiboot / VGA etc. live) are excluded.
 
 use crate::spinlock::Spinlock;
-use crate::multiboot::{Info, MemoryRegion};
+use crate::multiboot::Info;
 
 pub const FRAME_SIZE: u64 = 4096;
 
@@ -196,7 +196,7 @@ static FRAME_ALLOCATOR: Spinlock<FrameAllocator> = Spinlock::new(FrameAllocator:
 pub fn init(info: &Info) {
     let mut alloc = FRAME_ALLOCATOR.lock();
     alloc.init(info);
-    crate::serial::serial_println!(
+    crate::serial_println!(
         "frame allocator: {} regions, {} total frames ({} MiB), {} free",
         alloc.region_count,
         alloc.total_frames,
@@ -205,7 +205,7 @@ pub fn init(info: &Info) {
     );
     for i in 0..alloc.region_count {
         let r = alloc.regions[i];
-        crate::serial::serial_println!(
+        crate::serial_println!(
             "  region {}: [{:#x} - {:#x}) {} frames",
             i,
             r.start,

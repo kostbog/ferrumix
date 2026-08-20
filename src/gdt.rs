@@ -97,7 +97,7 @@ pub fn init() {
         );
         asm!("ltr {0:x}", in(reg) TSS_SELECTOR, options(nostack));
     }
-    crate::serial::serial_println!(
+    crate::serial_println!(
         "GDT: kernel code={:#x} data={:#x}, user code={:#x} data={:#x}, TSS={:#x}",
         KERNEL_CODE_SELECTOR,
         KERNEL_DATA_SELECTOR,

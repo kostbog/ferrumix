@@ -39,7 +39,7 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
         println!("WARNING: unexpected Multiboot2 magic");
     }
 
-    let info = unsafe { multiboot::Info::parse(mb_info as usize) };
+    let info = unsafe { multiboot::parse(mb_info as usize) };
     println!(
         "detected usable RAM: {} MiB ({} regions)",
         info.usable_memory / (1024 * 1024),
@@ -79,7 +79,7 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("KERNEL PANIC: {}", info);
-    serial::serial_println!("KERNEL PANIC: {}", info);
+    crate::serial_println!("KERNEL PANIC: {}", info);
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }
