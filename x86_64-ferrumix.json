@@ -17,6 +17,6 @@
   "relro-level": "off",
   "position-independent-executables": false,
   "static-position-independent-executables": false,
-  "needs-plt": false,
+  "plt-by-default": false,
   "has-thread-local": false
 }

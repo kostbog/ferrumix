@@ -59,6 +59,7 @@ mb2_end:
 .global _start
 .code32
 _start:
+    cli
     /* Preserve boot args (EAX=magic, EBX=mb_info) in callee-saved regs. */
     movl %eax, %ebp
 
@@ -80,9 +81,6 @@ _start:
     outb %al, %dx
     movw $0x3FA, %dx
     movb $0xC7, %al
-    outb %al, %dx
-    movw $0x3F9, %dx
-    movb $0x01, %al
     outb %al, %dx
     movw $0x3F8, %dx
     movb $'1', %al
