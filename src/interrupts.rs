@@ -64,73 +64,10 @@ extern "x86-interrupt" fn timer_handler(_frame: &mut InterruptStackFrame) {
 }
 
 extern "x86-interrupt" fn keyboard_handler(_frame: &mut InterruptStackFrame) {
-    let scan = unsafe { port::inb(0x60) };
-    // Only handle key-down events (bit 7 clear)
-    if scan & 0x80 == 0 {
-        if let Some(c) = scancode_to_ascii(scan) {
-            crate::kb_buffer::on_key(c);
-        }
-    }
+    let scancode = unsafe { port::inb(0x60) };
+    // The decoder needs both make and break codes to track Shift correctly.
+    crate::kb_buffer::on_scancode(scancode);
     unsafe { port::outb(0x20, 0x20) };
-}
-
-fn scancode_to_ascii(s: u8) -> Option<char> {
-    let c = match s & 0x7F {
-        0x01 => '1',
-        0x02 => '2',
-        0x03 => '3',
-        0x04 => '4',
-        0x05 => '5',
-        0x06 => '6',
-        0x07 => '7',
-        0x08 => '8',
-        0x09 => '9',
-        0x0A => '0',
-        0x0B => '-',
-        0x0C => '=',
-        0x0D => '\n',
-        0x0E => '\u{8}',
-        0x0F => '\t',
-        0x10 => 'q',
-        0x11 => 'w',
-        0x12 => 'e',
-        0x13 => 'r',
-        0x14 => 't',
-        0x15 => 'y',
-        0x16 => 'u',
-        0x17 => 'i',
-        0x18 => 'o',
-        0x19 => 'p',
-        0x1A => '[',
-        0x1B => ']',
-        0x1C => '\n',
-        0x1E => 'a',
-        0x1F => 's',
-        0x20 => 'd',
-        0x21 => 'f',
-        0x22 => 'g',
-        0x23 => 'h',
-        0x24 => 'j',
-        0x25 => 'k',
-        0x26 => 'l',
-        0x27 => ';',
-        0x28 => '\'',
-        0x29 => '`',
-        0x2B => '\\',
-        0x2C => 'z',
-        0x2D => 'x',
-        0x2E => 'c',
-        0x2F => 'v',
-        0x30 => 'b',
-        0x31 => 'n',
-        0x32 => 'm',
-        0x33 => ',',
-        0x34 => '.',
-        0x35 => '/',
-        0x39 => ' ',
-        _ => return None,
-    };
-    Some(c)
 }
 
 pub fn init() {

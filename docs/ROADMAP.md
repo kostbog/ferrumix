@@ -44,8 +44,9 @@ Each item is a separate, well-scoped step. Checked items are done.
       echo, command dispatch. Built-in commands: `help`, `clear`, `echo`,
       `ps`, `uptime`, `mem`, `ls`, `uname`, `whoami`, `version`, `reboot`.
       Prompt: `ferrumix> ` (colored on VGA, plain on serial).
-- [x] **Keyboard driver** (`src/kb_buffer.rs`): interrupt-driven character
-      buffer, proper key-down filtering, no-echo design (shell handles echo).
+- [x] **Keyboard driver** (`src/kb_buffer.rs`): interrupt-driven PS/2 Set 1
+      decoder, Shift/Caps Lock and key-release handling, interrupt-safe queue,
+      no-echo design (shell handles echo).
 - [x] **Interrupt-safe spinlock** (`IntSpinlock<T>`): disables interrupts
       while held, prevents deadlocks between IRQ handlers and shell display.
 - [ ] `init` (pid 1): mounts the VFS, starts the shell (currently shell runs

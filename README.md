@@ -49,9 +49,10 @@ paging introspection, GDT with ring-3 segments, a process table,
 - **VFS/devfs** (`src/vfs.rs`): nodes for `null`, `zero`, `tty`, `ttyS0`
 
 ### Interactive shell (MVP)
-- **Keyboard driver** (`src/kb_buffer.rs`): interrupt-driven character buffer
-  with proper key-down filtering. Characters are buffered without echo — the
-  shell handles echoing and line editing.
+- **Keyboard driver** (`src/kb_buffer.rs`): interrupt-driven PS/2 Set 1 decoder
+  with correct number/punctuation maps, Shift and Caps Lock state, key-release
+  handling, and an interrupt-safe character queue. Characters are buffered
+  without echo — the shell handles echoing and line editing.
 - **Interrupt-safe locking** (`src/spinlock.rs`): `IntSpinlock<T>` disables
   interrupts while held, preventing deadlocks between interrupt handlers and
   the shell's display operations.
