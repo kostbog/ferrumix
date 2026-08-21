@@ -56,12 +56,39 @@ mb2_end:
     .long _start
 
 .section .text
+
+/* Early debug output: the boot trampoline has no drivers yet, so it pokes
+ * COM1 directly.  Each stage prints one character, which makes a hang in the
+ * trampoline visible in the serial log. */
+.macro DBG ch
+    movw $0x3f8, %dx
+    movb $\ch, %al
+    outb %al, %dx
+.endm
+
 .align 8
 .global _start
 .code32
 _start:
-    /* Preserve boot args (EAX=magic, EBX=mb_info) in callee-saved regs. */
+    /* Preserve the boot arguments before anything can clobber them:
+       EAX = boot magic (Multiboot2) and EBX = boot information pointer. */
     movl %eax, %ebp
+
+    /* Bring COM1 up (38400 8N1) so the stages below can be traced. */
+    movw $0x3fb, %dx
+    movb $0x80, %al
+    outb %al, %dx
+    movw $0x3f8, %dx
+    movb $0x03, %al
+    outb %al, %dx
+    movw $0x3f9, %dx
+    movb $0x00, %al
+    outb %al, %dx
+    movw $0x3fb, %dx
+    movb $0x03, %al
+    outb %al, %dx
+    DBG 'A'
+
     /* Set up our own stack (identity-mapped region). */
     movl $boot_stack_top, %esp
 
@@ -96,6 +123,8 @@ _start:
     addl $8, %edi
     loop 2b
 
+    DBG 'B'
+
     /* Enable PAE (CR4.PAE = bit 5). */
     movl %cr4, %eax
     orl  $0x20, %eax
@@ -116,12 +145,15 @@ _start:
     orl  $0x80000000, %eax
     movl %eax, %cr0
 
+    DBG 'C'
+
     /* Load 64-bit GDT and far-jump into 64-bit code segment (selector 0x08). */
     lgdt gdt64_pointer
     ljmp $0x08, $long_mode_entry
 
 .code64
 long_mode_entry:
+    DBG 'D'
     /* Reload data segment registers for long mode (data selector 0x10). */
     movw $0x10, %ax
     movw %ax, %ds
@@ -137,6 +169,11 @@ long_mode_entry:
     /* Pass arguments to kernel_main(magic, mb_info) via C ABI regs. */
     movl %ebp, %edi              /* 1st arg: multiboot2 magic */
     movl %ebx, %esi              /* 2nd arg: multiboot2 info pointer */
+
+    DBG 'E'
+    movb $0x0a, %al
+    movw $0x3f8, %dx
+    outb %al, %dx
 
     cld                          /* Rust assumes the direction flag is clear */
     call kernel_main
