@@ -42,6 +42,9 @@ use core::panic::PanicInfo;
 pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
     serial::init();
     serial::trace(b'1');
+    // Install the IDT first: a fault during bring-up should be reported
+    // rather than triple fault the machine.
+    interrupts::install_idt();
     vga::WRITER.lock().clear();
     serial::trace(b'2');
     // Read a string out of .rodata without any formatting machinery.

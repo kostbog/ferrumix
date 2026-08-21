@@ -329,6 +329,20 @@ fn exception(frame: &mut TrapFrame) -> ! {
     let cr2: u64;
     unsafe { asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack, preserves_flags)) };
 
+    // First a raw, allocation- and formatting-free report: an exception can
+    // happen before (or because of) anything fancier working.
+    crate::serial::trace_str("\n[trap] vector=");
+    crate::serial::trace_hex(vector as u64);
+    crate::serial::trace_str(" rip=");
+    crate::serial::trace_hex(frame.rip);
+    crate::serial::trace_str(" err=");
+    crate::serial::trace_hex(frame.error_code);
+    crate::serial::trace_str(" cr2=");
+    crate::serial::trace_hex(cr2);
+    crate::serial::trace_str(" rsp=");
+    crate::serial::trace_hex(frame.rsp);
+    crate::serial::trace_str("\n");
+
     crate::println!(
         "EXCEPTION {} ({}) at {:#x} cs={:#x} err={:#x}",
         vector,
@@ -420,8 +434,11 @@ fn scancode_to_ascii(scancode: u8) -> Option<char> {
     Some(ch)
 }
 
-/// Install the IDT, remap the PIC, start the timer and enable interrupts.
-pub fn init() {
+/// Fill in the IDT and load it, without enabling any interrupt source.
+///
+/// This runs very early so that a fault during bring-up is reported instead
+/// of triple faulting the machine.
+pub fn install_idt() {
     unsafe {
         for (vector, stub) in ISR_STUB_TABLE.iter().enumerate().take(48) {
             idt::entry(vector).set_handler(*stub);
@@ -432,8 +449,14 @@ pub fn init() {
         // The system-call gate must be callable from ring 3.
         let stub = ISR_STUB_TABLE[SYSCALL_STUB_INDEX];
         idt::entry(SYSCALL_VECTOR as usize).set_handler_with_dpl(stub, 3);
-
         idt::load();
+    }
+}
+
+/// Remap the PIC, start the timer and enable interrupts.
+pub fn init() {
+    install_idt();
+    unsafe {
         remap_pic();
         init_pit();
 

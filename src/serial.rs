@@ -65,6 +65,33 @@ pub fn init() {
     }
 }
 
+/// Write a string to COM1 without locks or formatting machinery.
+pub fn trace_str(text: &str) {
+    for byte in text.bytes() {
+        if byte == b'\n' {
+            trace(b'\r');
+        }
+        trace(byte);
+    }
+}
+
+/// Write a 64-bit value to COM1 in hex, without locks or formatting.
+pub fn trace_hex(value: u64) {
+    trace_str("0x");
+    let mut started = false;
+    for shift in (0..16).rev() {
+        let nibble = ((value >> (shift * 4)) & 0xf) as u8;
+        if nibble != 0 || started || shift == 0 {
+            started = true;
+            trace(if nibble < 10 {
+                b'0' + nibble
+            } else {
+                b'a' + nibble - 10
+            });
+        }
+    }
+}
+
 /// A lock-free COM1 writer for panics and early boot traces.
 ///
 /// The normal [`SERIAL`] writer takes a lock; if the kernel panics *while*
