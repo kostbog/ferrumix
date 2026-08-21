@@ -1,23 +1,23 @@
-/* boot.S — Multiboot entry + long-mode trampoline for Ferrumix.
+/* boot.S — boot headers + long-mode trampoline for Ferrumix.
  *
- * The image carries two boot headers so it can be started either way:
+ * The image carries two boot descriptions so it can be started either way:
  *
- *   * Multiboot1 (0x1BADB002) — this is what QEMU's `-kernel` understands,
- *     it enters with EAX = 0x2BADB002 and EBX = pointer to the info struct;
- *   * Multiboot2 (0xE85250D6) — used by GRUB, EAX = 0x36D76289.
+ *   * a Multiboot2 header (0xE85250D6) for GRUB, which enters with
+ *     EAX = 0x36D76289 and EBX = pointer to the Multiboot2 information;
+ *   * a PVH ELF note (XEN_ELFNOTE_PHYS32_ENTRY), which is what QEMU's
+ *     `-kernel` uses for 64-bit ELF images: it enters with EBX = pointer to
+ *     an `hvm_start_info` structure (QEMU refuses Multiboot for ELF64).
  *
- * Either way we are entered in 32-bit protected mode with paging disabled.
+ * Both protocols enter in 32-bit protected mode with paging disabled, so the
+ * same trampoline serves them; `kernel_main` works out which one it was from
+ * EAX and from the magic of the structure EBX points at.
  *
  * Our job here:
  *   1. Build 1:1 page tables (identity map the first 1 GiB with 2 MiB pages).
  *   2. Enable PAE, load CR3, set EFER.LME, enable paging  -> long mode.
  *   3. Load a 64-bit GDT and far-jump into 64-bit code.
- *   4. Set up the stack and call kernel_main(magic, mb_info).
+ *   4. Set up the stack and call kernel_main(magic, boot_info).
  */
-
-.set MB1_MAGIC,    0x1BADB002
-.set MB1_FLAGS,    0x00000003   /* align modules on pages + memory map     */
-.set MB1_CHECKSUM, -(MB1_MAGIC + MB1_FLAGS)
 
 .set MB2_MAGIC,    0xe85250d6
 .set MB2_ARCH,     0            /* 0 = x86 (32-bit)                        */
@@ -25,15 +25,6 @@
 .set MB2_CHECKSUM, (0 - (MB2_MAGIC + MB2_ARCH + MB2_LEN)) & 0xFFFFFFFF
 
 .section .multiboot, "a"
-/* --- Multiboot1 header (QEMU -kernel) --- */
-.align 4
-mb1_start:
-    .long MB1_MAGIC
-    .long MB1_FLAGS
-    .long MB1_CHECKSUM
-mb1_end:
-
-/* --- Multiboot2 header (GRUB) --- */
 .align 8
 mb2_start:
     .long MB2_MAGIC
@@ -52,6 +43,17 @@ mb2_start:
     .long 0                      /* end tag (type 0) */
     .long 8
 mb2_end:
+
+/* PVH boot protocol: XEN_ELFNOTE_PHYS32_ENTRY (type 18) tells the loader the
+ * 32-bit entry point of the image. */
+.section .note.Xen, "a", @note
+.align 4
+    .long 4                      /* namesz: "Xen\0"                        */
+    .long 4                      /* descsz: a 32-bit entry point            */
+    .long 18                     /* XEN_ELFNOTE_PHYS32_ENTRY                */
+    .asciz "Xen"
+    .align 4
+    .long _start
 
 .section .text
 .align 8

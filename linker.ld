@@ -20,8 +20,12 @@ SECTIONS
     __kernel_phys_start = .;
 
     .text : {
-        KEEP(*(.multiboot))       /* Multiboot1 + Multiboot2 headers first */
+        KEEP(*(.multiboot))       /* Multiboot2 header must come first */
         *(.text .text.*)
+    }
+
+    .note.Xen : {
+        KEEP(*(.note.Xen))        /* PVH entry note — QEMU -kernel uses it */
     }
 
     .rodata : ALIGN(4K) {
@@ -44,6 +48,5 @@ SECTIONS
     /DISCARD/ : {
         *(.eh_frame)
         *(.comment)
-        *(.note .note.*)
     }
 }

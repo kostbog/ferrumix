@@ -1,9 +1,10 @@
 //! Multiboot information parsing (memory map), for both boot protocols.
 //!
-//! Ferrumix can be started by QEMU's `-kernel` (Multiboot **1**) or by GRUB
-//! (Multiboot **2**), and the two hand over their information in completely
-//! different structures.  `EAX` tells the kernel which one it got, so
-//! [`parse`] dispatches on the boot magic and normalises both into the same
+//! Ferrumix can be started by QEMU's `-kernel` (the PVH protocol, because
+//! QEMU refuses Multiboot for 64-bit ELF images) or by GRUB (Multiboot2), and
+//! every protocol hands over its information in a different structure.
+//! [`parse`] dispatches on the boot magic — `EAX` for Multiboot, the magic of
+//! the structure itself for PVH — and normalises all of them into one
 //! [`Info`].
 //!
 //! The structure lives in low physical memory, which the boot trampoline
@@ -14,6 +15,8 @@
 pub const MULTIBOOT1_MAGIC: u32 = 0x2bad_b002;
 /// Magic in EAX when a Multiboot2 loader (GRUB) starts us.
 pub const MULTIBOOT2_MAGIC: u32 = 0x36d7_6289;
+/// Magic at the start of the `hvm_start_info` structure of the PVH protocol.
+pub const PVH_MAGIC: u32 = 0x336e_c578;
 
 /// One entry of the firmware memory map.
 #[derive(Clone, Copy, Debug)]
@@ -80,6 +83,8 @@ pub unsafe fn parse(magic: u32, addr: usize) -> Info {
     let mut info = match magic {
         MULTIBOOT2_MAGIC => parse_multiboot2(addr),
         MULTIBOOT1_MAGIC => parse_multiboot1(addr),
+        // PVH does not put a magic in EAX; the structure carries its own.
+        _ if addr != 0 && *(addr as *const u32) == PVH_MAGIC => parse_pvh(addr),
         _ => Info::empty(),
     };
 
@@ -122,6 +127,45 @@ unsafe fn parse_multiboot1(addr: usize) -> Info {
         let ty = *((entry + 20) as *const u32);
         info.push(base, len, ty);
         entry += size + 4;
+    }
+    info
+}
+
+/// PVH: `hvm_start_info` with an e820-style memory map hanging off it.
+///
+/// ```text
+///   struct hvm_start_info {
+///     uint32_t magic;            +0
+///     uint32_t version;          +4
+///     uint32_t flags;            +8
+///     uint32_t nr_modules;      +12
+///     uint64_t modlist_paddr;   +16
+///     uint64_t cmdline_paddr;   +24
+///     uint64_t rsdp_paddr;      +32
+///     uint64_t memmap_paddr;    +40   (version >= 1)
+///     uint32_t memmap_entries;  +48
+///   };
+/// ```
+unsafe fn parse_pvh(addr: usize) -> Info {
+    let mut info = Info::empty();
+    info.protocol = "pvh";
+
+    let version = *((addr + 4) as *const u32);
+    if version < 1 {
+        return info;
+    }
+    let memmap = *((addr + 40) as *const u64) as usize;
+    let entries = *((addr + 48) as *const u32) as usize;
+    if memmap == 0 {
+        return info;
+    }
+    for i in 0..entries {
+        // struct hvm_memmap_table_entry { u64 addr; u64 size; u32 type; u32 _; }
+        let entry = memmap + i * 24;
+        let base = *(entry as *const u64);
+        let len = *((entry + 8) as *const u64);
+        let ty = *((entry + 16) as *const u32);
+        info.push(base, len, ty);
     }
     info
 }
