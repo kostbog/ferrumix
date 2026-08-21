@@ -44,6 +44,13 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
     serial::trace(b'1');
     vga::WRITER.lock().clear();
     serial::trace(b'2');
+    // Read a string out of .rodata without any formatting machinery.
+    for byte in "ROD".as_bytes() {
+        serial::trace(*byte);
+    }
+    // Console path without core::fmt.
+    console::write_str("<direct>");
+    serial::trace(b'3');
 
     println!("Ferrumix 0.1.0 — a tiny Unix-like kernel in Rust");
     println!("boot magic: {:#x}, boot info @ {:#x}", magic, mb_info);
