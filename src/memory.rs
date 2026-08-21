@@ -65,15 +65,28 @@ impl FrameAllocator {
         }
     }
 
-    /// Initialise from Multiboot info.
+    /// Initialise from the boot memory map.
     pub fn init(&mut self, info: &Info) {
+        crate::println!(
+            "memory: kernel image [{:#x} - {:#x})",
+            unsafe { core::ptr::addr_of!(__kernel_start) as u64 },
+            unsafe { core::ptr::addr_of!(__kernel_end) as u64 }
+        );
+        for region in info.regions_slice() {
+            crate::serial_println!(
+                "memory: boot region [{:#x} - {:#x}) type {}",
+                region.base,
+                region.base + region.len,
+                region.ty
+            );
+        }
         self.regions = [Region::empty(); 32];
         self.region_count = 0;
         self.total_frames = 0;
         self.used_frames = 0;
 
-        let k_start = unsafe { &__kernel_start as *const u8 as u64 };
-        let k_end = unsafe { &__kernel_end as *const u8 as u64 };
+        let k_start = unsafe { core::ptr::addr_of!(__kernel_start) as u64 };
+        let k_end = unsafe { core::ptr::addr_of!(__kernel_end) as u64 };
 
         // Round kernel end up to next frame.
         let k_end_aligned = (k_end + FRAME_SIZE - 1) & !(FRAME_SIZE - 1);
