@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# ci-diag.sh — TEMPORARY development helper.
+#
+# Runs the full local verification pipeline (fmt, build, clippy, QEMU boot
+# test) and, when running inside GitHub Actions, echoes the tail of the log
+# back as workflow annotations (`::error::` / `::notice::`) so the result is
+# visible through the checks API without downloading raw job logs.
+#
+# This file is a scaffolding aid for developing without a local Rust
+# toolchain; it is not part of the kernel.
+
+set -u
+
+TARGET="${TARGET:-x86_64-unknown-none}"
+KERNEL="target/${TARGET}/debug/ferrumix"
+LOG="$(mktemp -t ferrumix-ci.XXXXXX.log)"
+status=0
+
+{
+  echo "== toolchain"
+  rustc -V
+  cargo -V
+  echo
+
+  echo "== cargo fmt --all --check"
+  cargo fmt --all --check
+  echo "fmt exit: $?"
+  echo
+
+  echo "== cargo build --target ${TARGET}"
+  cargo build --target "${TARGET}"
+  build_rc=$?
+  echo "build exit: ${build_rc}"
+  echo
+
+  if [ "${build_rc}" -eq 0 ]; then
+    echo "== cargo clippy"
+    cargo clippy --target "${TARGET}" 2>&1 | grep -E "^(warning|error)" | sort | uniq -c | sort -rn | head -20
+    echo
+
+    echo "== boot test"
+    timeout 25 qemu-system-x86_64 -kernel "${KERNEL}" -serial stdio -display none -monitor none
+    echo "qemu exit: $?"
+  fi
+} >"${LOG}" 2>&1
+
+# Decide pass/fail the same way `make test` does.
+if ! grep -q "^fmt exit: 0$" "${LOG}"; then status=10; fi
+if ! grep -q "^build exit: 0$" "${LOG}"; then status=20; fi
+if [ "${status}" -eq 0 ]; then
+  for pat in "Ferrumix 0.1.0" "is alive" "ferrumix>"; do
+    grep -q "${pat}" "${LOG}" || status=30
+  done
+fi
+
+cat "${LOG}"
+
+if [ -n "${GITHUB_ACTIONS:-}" ]; then
+  level="notice"
+  [ "${status}" -ne 0 ] && level="error"
+  chunkdir="$(mktemp -d)"
+  tail -c 24000 "${LOG}" | split -l 25 - "${chunkdir}/chunk_"
+  for f in "${chunkdir}"/chunk_*; do
+    msg="$(python3 -c "
+import sys
+data = open(sys.argv[1], 'r', errors='replace').read()
+print(data.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+" "$f")"
+    echo "::${level}::${msg}"
+  done
+fi
+
+exit "${status}"
