@@ -76,11 +76,9 @@ impl DevFs {
     }
 
     fn find(&self, name: &str) -> Option<Node> {
-        for slot in self.nodes.iter().take(self.count) {
-            if let Some(node) = slot {
-                if node.name == name {
-                    return Some(*node);
-                }
+        for node in self.nodes.iter().take(self.count).flatten() {
+            if node.name == name {
+                return Some(*node);
             }
         }
         None
@@ -113,15 +111,13 @@ pub fn list() {
     nodes[..].copy_from_slice(&fs.nodes[..]);
     let count = fs.count;
     drop(fs);
-    for slot in nodes.iter().take(count) {
-        if let Some(node) = slot {
-            crate::println!(
-                "/dev/{:<8} {:<8} {}:{}",
-                node.name,
-                node.ty.as_str(),
-                node.major,
-                node.minor
-            );
-        }
+    for node in nodes.iter().take(count).flatten() {
+        crate::println!(
+            "/dev/{:<8} {:<8} {}:{}",
+            node.name,
+            node.ty.as_str(),
+            node.major,
+            node.minor
+        );
     }
 }

@@ -92,6 +92,17 @@ _start:
     /* Set up our own stack (identity-mapped region). */
     movl $boot_stack_top, %esp
 
+    /* ---- Zero the .bss: the boot protocol does not promise clean memory,
+       and every kernel static (locks, page tables, stacks) lives there. ---- */
+    cld
+    movl $__bss_start, %edi
+    movl $__bss_end, %ecx
+    subl %edi, %ecx
+    shrl $2, %ecx
+    xorl %eax, %eax
+    rep stosl
+    DBG 'Z'
+
     /* ---- Zero the three page tables (3 * 4096 bytes = 12288 bytes) ---- */
     movl $pml4_table, %edi
     xorl %eax, %eax

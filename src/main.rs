@@ -40,11 +40,10 @@ use core::panic::PanicInfo;
 
 #[no_mangle]
 pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
+    serial::init();
     serial::trace(b'1');
     vga::WRITER.lock().clear();
     serial::trace(b'2');
-    serial::init();
-    serial::trace(b'3');
 
     println!("Ferrumix 0.1.0 — a tiny Unix-like kernel in Rust");
     println!("boot magic: {:#x}, boot info @ {:#x}", magic, mb_info);

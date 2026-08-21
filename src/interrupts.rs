@@ -53,7 +53,7 @@ pub struct TrapFrame {
 
 impl TrapFrame {
     /// True when the trap came from ring 3.
-    pub fn from_user(&self) -> bool {
+    pub fn came_from_user(&self) -> bool {
         self.cs & 3 == 3
     }
 }
@@ -291,7 +291,7 @@ pub unsafe extern "C" fn trap_dispatch(frame: *mut TrapFrame) {
         0x80 => crate::syscall::dispatch(frame),
         32 => {
             TICKS.fetch_add(1, Ordering::Relaxed);
-            if TICKS.load(Ordering::Relaxed) % 1000 == 0 {
+            if TICKS.load(Ordering::Relaxed).is_multiple_of(1000) {
                 crate::serial_println!("timer tick {}", TICKS.load(Ordering::Relaxed));
             }
             end_of_interrupt(32);
@@ -305,7 +305,7 @@ pub unsafe extern "C" fn trap_dispatch(frame: *mut TrapFrame) {
             }
             end_of_interrupt(33);
         }
-        32..=47 => end_of_interrupt(vector),
+        34..=47 => end_of_interrupt(vector),
         _ => exception(frame),
     }
 }
@@ -348,7 +348,7 @@ fn exception(frame: &mut TrapFrame) -> ! {
         );
     }
 
-    if frame.from_user() {
+    if frame.came_from_user() {
         crate::usermode::abort_current(name);
     }
 
@@ -420,8 +420,8 @@ fn scancode_to_ascii(scancode: u8) -> Option<char> {
 /// Install the IDT, remap the PIC, start the timer and enable interrupts.
 pub fn init() {
     unsafe {
-        for vector in 0..48usize {
-            idt::entry(vector).set_handler(ISR_STUB_TABLE[vector]);
+        for (vector, stub) in ISR_STUB_TABLE.iter().enumerate().take(48) {
+            idt::entry(vector).set_handler(*stub);
         }
         // The double fault runs on its own IST stack so it survives a broken
         // kernel stack.

@@ -207,7 +207,7 @@ unsafe fn split_huge_2mib(pd: *mut u64, idx: usize) -> Result<(), VmError> {
 /// # Safety
 /// `root` must be a valid PML4 reachable through the identity window.
 pub unsafe fn map_page(root: u64, virt: u64, phys: u64, flags: u64) -> Result<(), VmError> {
-    if virt % PAGE_SIZE != 0 || phys % PAGE_SIZE != 0 {
+    if !virt.is_multiple_of(PAGE_SIZE) || !phys.is_multiple_of(PAGE_SIZE) {
         return Err(VmError::Misaligned);
     }
     let pml4 = root as *mut u64;
@@ -236,7 +236,7 @@ pub unsafe fn map_page(root: u64, virt: u64, phys: u64, flags: u64) -> Result<()
 /// # Safety
 /// `root` must be a valid PML4 reachable through the identity window.
 pub unsafe fn unmap_page(root: u64, virt: u64) -> Result<u64, VmError> {
-    if virt % PAGE_SIZE != 0 {
+    if !virt.is_multiple_of(PAGE_SIZE) {
         return Err(VmError::Misaligned);
     }
     let pml4 = root as *mut u64;
@@ -393,13 +393,13 @@ pub fn flags_string(flags: u64, out: &mut [u8; 8]) -> usize {
 pub fn dump_walk(root: u64, virt: u64) {
     let names = ["PML4", "PDPT", "PD  ", "PT  "];
     let mut table = root as *mut u64;
-    for level in 0..4 {
+    for (level, name) in names.iter().enumerate() {
         let idx = index(virt, 3 - level as u32);
         let entry = unsafe { read_entry(table, idx) };
         let mut buf = [0u8; 8];
         let len = flags_string(entry, &mut buf);
         let flags = core::str::from_utf8(&buf[..len]).unwrap_or("");
-        crate::println!("  {}[{:3}] = {:#018x}  {}", names[level], idx, entry, flags);
+        crate::println!("  {}[{:3}] = {:#018x}  {}", name, idx, entry, flags);
         if entry & ENTRY_PRESENT == 0 {
             crate::println!("  (not present — walk stops here)");
             return;

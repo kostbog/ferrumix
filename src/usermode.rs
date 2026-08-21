@@ -296,8 +296,8 @@ pub fn brk(request: u64) -> u64 {
     if request == 0 || !in_user_mode() {
         return current;
     }
-    if request < USER_TEXT_BASE || request >= USER_STACK_TOP - USER_STACK_PAGES * paging::PAGE_SIZE
-    {
+    let heap_limit = USER_STACK_TOP - USER_STACK_PAGES * paging::PAGE_SIZE;
+    if !(USER_TEXT_BASE..heap_limit).contains(&request) {
         return current;
     }
 

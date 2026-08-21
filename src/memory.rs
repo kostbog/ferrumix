@@ -166,7 +166,7 @@ impl FrameAllocator {
     }
 
     pub fn free_frame(&mut self, addr: u64) {
-        if addr % FRAME_SIZE != 0 {
+        if !addr.is_multiple_of(FRAME_SIZE) {
             return;
         }
         if self.free_count < self.free_list.len() {

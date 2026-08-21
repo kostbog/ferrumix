@@ -55,7 +55,7 @@ const CHUNK: usize = 256;
 /// Handle one system call and store the result in `frame.rax`.
 pub fn dispatch(frame: &mut TrapFrame) {
     let number = frame.rax;
-    let root = if frame.from_user() {
+    let root = if frame.came_from_user() {
         usermode::current_root()
     } else {
         paging::active_root()
