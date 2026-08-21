@@ -52,19 +52,79 @@ const MAX_IO: usize = 1 << 20;
 /// Size of the bounce buffer used to copy user data in chunks.
 const CHUNK: usize = 256;
 
+/// Who made the call: which address space its pointers live in, and whether
+/// they need the full user-space validation.
+#[derive(Clone, Copy)]
+pub struct Caller {
+    /// Page table root the pointers must be resolved in.
+    pub root: u64,
+    /// True when the call came from ring 3.
+    pub user: bool,
+}
+
+impl Caller {
+    fn of(frame: &TrapFrame) -> Self {
+        if frame.came_from_user() {
+            Caller {
+                root: usermode::current_root(),
+                user: true,
+            }
+        } else {
+            Caller {
+                root: paging::active_root(),
+                user: false,
+            }
+        }
+    }
+
+    /// Copy `buf.len()` bytes from the caller's memory.
+    fn read(&self, addr: u64, buf: &mut [u8]) -> Result<(), uaccess::UserFault> {
+        if self.user {
+            uaccess::copy_from_user(self.root, buf, addr)?;
+        } else {
+            // A ring-0 caller (the boot self-test) hands over kernel pointers.
+            unsafe {
+                core::ptr::copy_nonoverlapping(addr as *const u8, buf.as_mut_ptr(), buf.len())
+            };
+        }
+        Ok(())
+    }
+
+    /// Copy bytes into the caller's memory.
+    fn write(&self, addr: u64, data: &[u8]) -> Result<(), uaccess::UserFault> {
+        if self.user {
+            uaccess::copy_to_user(self.root, addr, data)?;
+        } else {
+            unsafe { core::ptr::copy_nonoverlapping(data.as_ptr(), addr as *mut u8, data.len()) };
+        }
+        Ok(())
+    }
+
+    /// Read a NUL terminated string from the caller's memory.
+    fn read_str<'a>(&self, addr: u64, buf: &'a mut [u8]) -> Result<&'a str, uaccess::UserFault> {
+        if self.user {
+            return uaccess::copy_str_from_user(self.root, addr, buf);
+        }
+        for i in 0..buf.len() {
+            let byte = unsafe { core::ptr::read_volatile((addr + i as u64) as *const u8) };
+            if byte == 0 {
+                return core::str::from_utf8(&buf[..i]).map_err(|_| uaccess::UserFault::BadRange);
+            }
+            buf[i] = byte;
+        }
+        Err(uaccess::UserFault::BadRange)
+    }
+}
+
 /// Handle one system call and store the result in `frame.rax`.
 pub fn dispatch(frame: &mut TrapFrame) {
     let number = frame.rax;
-    let root = if frame.came_from_user() {
-        usermode::current_root()
-    } else {
-        paging::active_root()
-    };
+    let caller = Caller::of(frame);
 
     let result = match number {
-        SYS_READ => sys_read(root, frame.rdi as usize, frame.rsi, frame.rdx as usize),
-        SYS_WRITE => sys_write(root, frame.rdi as usize, frame.rsi, frame.rdx as usize),
-        SYS_OPEN => sys_open(root, frame.rdi),
+        SYS_READ => sys_read(caller, frame.rdi as usize, frame.rsi, frame.rdx as usize),
+        SYS_WRITE => sys_write(caller, frame.rdi as usize, frame.rsi, frame.rdx as usize),
+        SYS_OPEN => sys_open(caller, frame.rdi),
         SYS_CLOSE => sys_close(frame.rdi as usize),
         SYS_BRK => usermode::brk(frame.rdi) as i64,
         SYS_GETPID => crate::process::current_pid() as i64,
@@ -92,7 +152,7 @@ fn fault_to_errno(fault: uaccess::UserFault) -> i64 {
 }
 
 /// `write(fd, buf, len)` — text output to the screen and/or the serial port.
-fn sys_write(root: u64, fd: usize, buf: u64, len: usize) -> i64 {
+fn sys_write(caller: Caller, fd: usize, buf: u64, len: usize) -> i64 {
     if len == 0 {
         return 0;
     }
@@ -119,7 +179,7 @@ fn sys_write(root: u64, fd: usize, buf: u64, len: usize) -> i64 {
     while done < len {
         let take = core::cmp::min(CHUNK, len - done);
         let slice = &mut chunk[..take];
-        if let Err(fault) = uaccess::copy_from_user(root, slice, buf + done as u64) {
+        if let Err(fault) = caller.read(buf + done as u64, slice) {
             return if done > 0 {
                 done as i64
             } else {
@@ -133,7 +193,7 @@ fn sys_write(root: u64, fd: usize, buf: u64, len: usize) -> i64 {
 }
 
 /// `read(fd, buf, len)` — line oriented input from the keyboard.
-fn sys_read(root: u64, fd: usize, buf: u64, len: usize) -> i64 {
+fn sys_read(caller: Caller, fd: usize, buf: u64, len: usize) -> i64 {
     if len == 0 {
         return 0;
     }
@@ -154,7 +214,7 @@ fn sys_read(root: u64, fd: usize, buf: u64, len: usize) -> i64 {
             let mut done = 0usize;
             while done < len {
                 let take = core::cmp::min(CHUNK, len - done);
-                if let Err(fault) = uaccess::copy_to_user(root, buf + done as u64, &zeros[..take]) {
+                if let Err(fault) = caller.write(buf + done as u64, &zeros[..take]) {
                     return fault_to_errno(fault);
                 }
                 done += take;
@@ -185,8 +245,8 @@ fn sys_read(root: u64, fd: usize, buf: u64, len: usize) -> i64 {
                     }
                 }
             }
-            match uaccess::copy_to_user(root, buf, &line[..done]) {
-                Ok(_) => done as i64,
+            match caller.write(buf, &line[..done]) {
+                Ok(()) => done as i64,
                 Err(fault) => fault_to_errno(fault),
             }
         }
@@ -195,9 +255,9 @@ fn sys_read(root: u64, fd: usize, buf: u64, len: usize) -> i64 {
 }
 
 /// `open(path, flags, mode)` — resolve a devfs path into a descriptor.
-fn sys_open(root: u64, path_ptr: u64) -> i64 {
+fn sys_open(caller: Caller, path_ptr: u64) -> i64 {
     let mut buf = [0u8; 64];
-    let path = match uaccess::copy_str_from_user(root, path_ptr, &mut buf) {
+    let path = match caller.read_str(path_ptr, &mut buf) {
         Ok(path) => path,
         Err(fault) => return fault_to_errno(fault),
     };

@@ -1,6 +1,8 @@
 # Roadmap: from kernel skeleton to a Unix clone
 
-Current state — kernel skeleton + first Unix step + **interactive shell MVP** (see README).
+Current state — kernel skeleton, **console (screen/serial)**, **virtual memory
+operations**, **ELF loading into ring 3**, **system calls from user space** and
+an interactive shell (see README).
 Below is a plan for turning it into a minimal but genuine Unix-like system.
 Each item is a separate, well-scoped step. Checked items are done.
 
@@ -14,12 +16,16 @@ Each item is a separate, well-scoped step. Checked items are done.
       `src/paging.rs` — base for higher-half and per-process tables.
 - [x] `Process`/`Task`: pid allocator, table (64 slots), init pid 1, state.
       `src/process.rs` — Unix process model start.
-- [ ] Higher-half kernel map (e.g. `-2 GiB`), separate page tables per process
-      (next: actually remap kernel to 0xFFFFFFFF80000000, keep low identity).
+- [x] Separate page tables per process: `paging::new_address_space` clones the
+      kernel entries into a fresh PML4, user mappings live in PML4[1]
+      (0x80_0000_0000), `destroy_address_space` frees everything on exit.
+- [ ] Higher-half kernel map (e.g. `-2 GiB`): remap the kernel to
+      0xFFFFFFFF80000000 and drop the low identity window.
 - [ ] Context switching: `switch_to` (saving/restoring RIP/RSP and page
       tables) + a scheduler (round-robin) driven by the PIT timer.
-- [ ] Transition to ring 3 via `iret` into a loaded ELF userspace binary.
-      GDT already has user code/data (0x18/0x20) DPL3 and TSS.rsp0 ready.
+- [x] Transition to ring 3 via `iretq` into a loaded ELF binary — `src/usermode.rs`:
+      address space + stack + `argc/argv/envp/auxv`, `TSS.rsp0`, and a return
+      path (`leave_user_mode`) that brings the exit status back to the kernel.
 
 ## 2. System calls
 - [x] `int 0x80` handler with DPL=3 gate (fallback that will coexist with
@@ -29,15 +35,22 @@ Each item is a separate, well-scoped step. Checked items are done.
       `close` (3, stub), `getpid` (39), `brk` (12 stub).
       `write` outputs to VGA+serial; `read` reads from keyboard buffer.
 - [ ] `syscall`/`sysenter` fast path (MSR_LSTAR, STAR, etc).
-- [ ] Full set: `fork`, `exec`, `wait`, `mmap`, proper `open`/`close`.
-- [ ] Copying data between user/kernel (copy_from_user / copy_to_user with page walk).
+- [x] Copying data between user and kernel with a page walk — `src/uaccess.rs`
+      (`copy_from_user`, `copy_to_user`, `copy_str_from_user`, `check_range`),
+      bad pointers return `-EFAULT` instead of faulting the kernel.
+- [x] Real `open`/`close`/`read`/`write` against a per-process descriptor table
+      (`src/fd.rs`) and devfs, and a `brk` that maps real frames.
+- [ ] Full set: `fork`, `exec`, `wait`, `mmap`.
 
 ## 3. Virtual filesystem
 - [x] VFS stub with nodes (`inode`-like) and `devfs`: `null`, `zero`, `tty`, `ttyS0`.
       `src/vfs.rs` — lists devices, `find_dev` for shell `ls` command.
 - [ ] Simple in-RAM filesystem (`ramfs`/`tmpfs`) for `/`, `/bin`, `/dev`.
-- [ ] Loading ELF files from the VFS into a process's address space.
-- [ ] File descriptor table per process.
+- [x] ELF64 loader mapping `PT_LOAD` segments into a process address space with
+      per-segment permissions — `src/elf.rs`; the images currently come from
+      the kernel image itself (`src/user_program.rs`) because there is no disk.
+- [x] File descriptor table per process — `src/fd.rs`.
+- [ ] Loading ELF files from a real filesystem.
 
 ## 4. Userland environment
 - [x] **Interactive shell** (`src/shell.rs`): line editing with backspace,
@@ -54,6 +67,8 @@ Each item is a separate, well-scoped step. Checked items are done.
       (freestanding, built for `x86_64-ferrumix`).
 
 ## 5. Reliability and quality of life
+- [x] Text output layer that can target the screen, the serial port or both at
+      runtime — `src/console.rs` (`console` shell command, `/dev/tty`, `/dev/ttyS0`).
 - [ ] Output to `fb` (framebuffer from Multiboot2) instead of text-mode VGA only.
 - [ ] ACPI / Local APIC timer and multi-core CPU support.
 - [ ] `stdio` over the terminal with escaping, `printf` compatibility.

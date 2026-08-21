@@ -56,7 +56,9 @@ status=0
 if ! grep -q "^fmt exit: 0$" "${LOG}"; then status=10; fi
 if ! grep -q "^build exit: 0$" "${LOG}"; then status=20; fi
 if [ "${status}" -eq 0 ]; then
-  for pat in "Ferrumix 0.1.0" "is alive" "ferrumix>"; do
+  for pat in "Ferrumix 0.1.0" "is alive" "ferrumix>" "paging: self-test OK" \
+             "syscall: self-test" "elf: hello loaded" "hello from ring 3" \
+             "exited with status 7"; do
     grep -q "${pat}" "${LOG}" || status=30
   done
 fi
