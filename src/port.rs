@@ -1,5 +1,8 @@
 //! Minimal x86 port I/O helpers (no external crates).
 
+// Not every port helper is used yet; they are part of the driver toolkit.
+#![allow(dead_code)]
+
 use core::arch::asm;
 
 /// Write a byte to an I/O port.
@@ -40,7 +43,9 @@ pub unsafe fn inl(port: u16) -> u32 {
 
 /// A short delay used after programming the PIC/PS2 hardware.
 pub fn io_wait() {
-    unsafe { outb(0x80, 0); }
+    unsafe {
+        outb(0x80, 0);
+    }
 }
 
 /// Halt the CPU until the next interrupt.

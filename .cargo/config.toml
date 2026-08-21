@@ -1,27 +1,34 @@
 # Build the kernel as a freestanding x86_64 binary (no std, no libc).
 # Default target is still x86_64-unknown-none for stable toolchain compatibility
 # (core is prebuilt). The custom Unix target `x86_64-ferrumix.json` from the
-# roadmap is provided and can be built with nightly + `-Zbuild-std`:
+# roadmap can be built with nightly + `-Zbuild-std`:
 #   cargo +nightly build --target x86_64-ferrumix.json -Zbuild-std=core,compiler_builtins
 [build]
 target = "x86_64-unknown-none"
 
-[target.x86_64-unknown-none]
-# We provide our own linker script (see linker.ld) which lays out the kernel
-# at 1 MiB physical and keeps the Multiboot2 header at the very front.
-rustflags = [
-  "-C", "link-arg=-Tlinker.ld",
-]
-
-[target.x86_64-ferrumix]
-rustflags = [
-  "-C", "link-arg=-Tlinker.ld",
-]
-
-# Cargo treats a `x86_64-ferrumix.json` file path as target; need to repeat flags
-# for cfg when invoked via file path (cargo interprets target json filename as
-# generic, but specifying both triples ensures linker script still used).
+# One single place for the flags: Cargo *concatenates* the rustflags of
+# `target.<triple>` and `target.<cfg>`, so listing them twice would pass
+# `-Tlinker.ld` twice — the linker would then process the script twice and the
+# second (empty) pass would reset every symbol it defines (`__kernel_end`,
+# `__bss_end`, ...) back to the base address.
+#
+# A kernel is loaded at a fixed physical address and is not position
+# independent: the boot trampoline and the interrupt stub table use absolute
+# addresses, so codegen uses the static relocation model and the linker must
+# not produce a PIE.
 [target.'cfg(target_os = "none")']
 rustflags = [
+  "-C", "relocation-model=static",
+  "-C", "link-arg=--no-pie",
   "-C", "link-arg=-Tlinker.ld",
 ]
+
+# `-Zbuild-std=core,compiler_builtins` (used for the custom target on nightly)
+# does not build the memcpy/memset/... implementations by default, but a
+# freestanding kernel needs them; this key is ignored on stable toolchains.
+# Nightly cargo also needs to be told that `.json` target specifications are
+# allowed (`-Zjson-target-spec`), which is how the custom `x86_64-ferrumix`
+# target is built.  Both keys are ignored by stable toolchains.
+[unstable]
+build-std-features = ["compiler-builtins-mem"]
+json-target-spec = true

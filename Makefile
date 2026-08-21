@@ -43,7 +43,10 @@ clippy:
 # Full test suite: lint + build + boot test.  This is the single entry
 # point used by CI (`make test`).  Run it locally to verify everything.
 
-test: fmt clippy build _boot-test-debug
+test: fmt clippy build _boot-test-debug _custom-target-diag
+
+_custom-target-diag:
+	@bash ci-custom.sh
 
 test-release: fmt clippy build-release _boot-test-release
 
@@ -62,14 +65,21 @@ _boot-test-debug:
 	echo "$$out" | grep -q "syscall" || { echo "FAIL: syscall gate missing"; exit 1; }; \
 	echo "$$out" | grep -q "process" || { echo "FAIL: process table missing"; exit 1; }; \
 	echo "$$out" | grep -q "VFS" || { echo "FAIL: VFS missing"; exit 1; }; \
+	echo "$$out" | grep -q "console: text output ready" || { echo "FAIL: console missing"; exit 1; }; \
+	echo "$$out" | grep -q "paging: self-test OK" || { echo "FAIL: paging self-test failed"; exit 1; }; \
+	echo "$$out" | grep -q "syscall: self-test" || { echo "FAIL: syscall self-test missing"; exit 1; }; \
+	echo "$$out" | grep -q "elf: hello loaded" || { echo "FAIL: ELF loader did not run"; exit 1; }; \
+	echo "$$out" | grep -q "hello from ring 3" || { echo "FAIL: ring 3 program did not run"; exit 1; }; \
+	echo "$$out" | grep -q "exited with status 7" || { echo "FAIL: ring 3 exit status wrong"; exit 1; }; \
 	echo "$$out" | grep -q "ferrumix>" || { echo "FAIL: shell prompt not found"; exit 1; }; \
-	echo "BOOT TEST debug PASSED (lint + build + unix subsystems + shell verified)"
+	echo "BOOT TEST debug PASSED (lint + build + unix subsystems + ring 3 + shell)"
 
 _boot-test-release:
 	@out=$$(timeout 20 $(QEMU) -kernel $(KERNEL_RELEASE) -serial stdio -display none -monitor none 2>&1); \
 	printf '%s\n' "$$out"; \
 	echo "$$out" | grep -q "Ferrumix 0.1.0" || { echo "FAIL: banner not found"; exit 1; }; \
 	echo "$$out" | grep -q "is alive" || { echo "FAIL: idle loop not reached"; exit 1; }; \
+	echo "$$out" | grep -q "hello from ring 3" || { echo "FAIL: ring 3 program did not run"; exit 1; }; \
 	echo "$$out" | grep -q "ferrumix>" || { echo "FAIL: shell prompt not found"; exit 1; }; \
 	echo "BOOT TEST release PASSED"
 

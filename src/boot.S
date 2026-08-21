@@ -1,29 +1,36 @@
-/* boot.S — Multiboot2 32-bit entry + long-mode trampoline for Ferrumix.
+/* boot.S — boot headers + long-mode trampoline for Ferrumix.
  *
- * QEMU's `-kernel` with a Multiboot2 header loads us in 32-bit protected
- * mode (paging off, flat segments) and jumps to `_start` with:
- *     EAX = multiboot2 magic (0x36d76289)
- *     EBX = physical address of the Multiboot2 information structure
+ * The image carries two boot descriptions so it can be started either way:
+ *
+ *   * a Multiboot2 header (0xE85250D6) for GRUB, which enters with
+ *     EAX = 0x36D76289 and EBX = pointer to the Multiboot2 information;
+ *   * a PVH ELF note (XEN_ELFNOTE_PHYS32_ENTRY), which is what QEMU's
+ *     `-kernel` uses for 64-bit ELF images: it enters with EBX = pointer to
+ *     an `hvm_start_info` structure (QEMU refuses Multiboot for ELF64).
+ *
+ * Both protocols enter in 32-bit protected mode with paging disabled, so the
+ * same trampoline serves them; `kernel_main` works out which one it was from
+ * EAX and from the magic of the structure EBX points at.
  *
  * Our job here:
  *   1. Build 1:1 page tables (identity map the first 1 GiB with 2 MiB pages).
  *   2. Enable PAE, load CR3, set EFER.LME, enable paging  -> long mode.
  *   3. Load a 64-bit GDT and far-jump into 64-bit code.
- *   4. Set up the stack and call kernel_main(magic, mb_info).
+ *   4. Set up the stack and call kernel_main(magic, boot_info).
  */
 
-.set MAGIC,    0xe85250d6
-.set ARCH,     0                 /* 0 = x86 (32-bit) */
-.set HDR_LEN,  (mb2_end - mb2_start)
-.set CHECKSUM, (0 - (MAGIC + ARCH + HDR_LEN)) & 0xFFFFFFFF
+.set MB2_MAGIC,    0xe85250d6
+.set MB2_ARCH,     0            /* 0 = x86 (32-bit)                        */
+.set MB2_LEN,      (mb2_end - mb2_start)
+.set MB2_CHECKSUM, (0 - (MB2_MAGIC + MB2_ARCH + MB2_LEN)) & 0xFFFFFFFF
 
-.section .multiboot2, "a"
+.section .multiboot, "a"
 .align 8
 mb2_start:
-    .long MAGIC
-    .long ARCH
-    .long HDR_LEN
-    .long CHECKSUM
+    .long MB2_MAGIC
+    .long MB2_ARCH
+    .long MB2_LEN
+    .long MB2_CHECKSUM
     /* Information request tag (type 1): ask for cmdline(4), mmap(6), fb(8). */
     .align 8
     .long 1
@@ -37,15 +44,39 @@ mb2_start:
     .long 8
 mb2_end:
 
+/* PVH boot protocol: XEN_ELFNOTE_PHYS32_ENTRY (type 18) tells the loader the
+ * 32-bit entry point of the image. */
+.section .note.Xen, "a", @note
+.align 4
+    .long 4                      /* namesz: "Xen\0"                        */
+    .long 4                      /* descsz: a 32-bit entry point            */
+    .long 18                     /* XEN_ELFNOTE_PHYS32_ENTRY                */
+    .asciz "Xen"
+    .align 4
+    .long _start
+
 .section .text
+
 .align 8
 .global _start
-bits 32
+.code32
 _start:
-    /* Preserve boot args (EAX=magic, EBX=mb_info) in callee-saved regs. */
+    /* Preserve the boot arguments before anything can clobber them:
+       EAX = boot magic (Multiboot2) and EBX = boot information pointer. */
     movl %eax, %ebp
+
     /* Set up our own stack (identity-mapped region). */
     movl $boot_stack_top, %esp
+
+    /* ---- Zero the .bss: the boot protocol does not promise clean memory,
+       and every kernel static (locks, page tables, stacks) lives there. ---- */
+    cld
+    movl $__bss_start, %edi
+    movl $__bss_end, %ecx
+    subl %edi, %ecx
+    shrl $2, %ecx
+    xorl %eax, %eax
+    rep stosl
 
     /* ---- Zero the three page tables (3 * 4096 bytes = 12288 bytes) ---- */
     movl $pml4_table, %edi
@@ -78,6 +109,7 @@ _start:
     addl $8, %edi
     loop 2b
 
+
     /* Enable PAE (CR4.PAE = bit 5). */
     movl %cr4, %eax
     orl  $0x20, %eax
@@ -98,11 +130,12 @@ _start:
     orl  $0x80000000, %eax
     movl %eax, %cr0
 
+
     /* Load 64-bit GDT and far-jump into 64-bit code segment (selector 0x08). */
     lgdt gdt64_pointer
     ljmp $0x08, $long_mode_entry
 
-bits 64
+.code64
 long_mode_entry:
     /* Reload data segment registers for long mode (data selector 0x10). */
     movw $0x10, %ax
@@ -147,7 +180,10 @@ pdpt:
     .skip 4096
 pd_table:
     .skip 4096
-.align 16
+.align 4096
+boot_stack_guard:
+    .skip 4096                   /* slack, so a stack overflow does not
+                                    immediately eat the page tables */
 boot_stack_bottom:
-    .skip 16384
+    .skip 32768
 boot_stack_top:
