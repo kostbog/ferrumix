@@ -19,5 +19,6 @@
   "static-position-independent-executables": false,
   "has-thread-local": false,
   "relocation-model": "static",
-  "plt-by-default": false
+  "plt-by-default": false,
+  "rustc-abi": "x86-softfloat"
 }
