@@ -25,7 +25,7 @@ Each item is a separate, well-scoped step. Checked items are done.
 - [x] `int 0x80` handler with DPL=3 gate (fallback that will coexist with
       `syscall`/`sysenter` later). Assembly stub saves GPRs and calls Rust.
       `src/syscall.rs` — handler at `0x80`, `syscall_dispatch`.
-- [x] Basic set: `exit` (0/60), `write` (1), `read` (0), `open` (2, stub),
+- [x] Basic set: `exit` (60), `write` (1), `read` (0), `open` (2, stub),
       `close` (3, stub), `getpid` (39), `brk` (12 stub).
       `write` outputs to VGA+serial; `read` reads from keyboard buffer.
 - [ ] `syscall`/`sysenter` fast path (MSR_LSTAR, STAR, etc).
@@ -59,7 +59,7 @@ Each item is a separate, well-scoped step. Checked items are done.
 - [ ] `stdio` over the terminal with escaping, `printf` compatibility.
 - [x] Tests: boot test in QEMU asserts Unix subsystems + shell prompt;
       all builds/tests on GitHub Actions.
-      `.github/workflows/ci.yml` — lint, build matrix (debug/release),
+      `.github/workflows/test.yml` — lint, build matrix (debug/release),
       custom target, userspace, boot tests, `make test` compat.
 
 ## Architectural decisions (for the future)

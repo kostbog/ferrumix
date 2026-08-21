@@ -47,26 +47,40 @@ pub unsafe fn parse(addr: usize) -> Info {
         ty: 0,
     }; 32];
     let mut region_count: usize = 0;
+    let total_size = *(addr as *const u32) as usize;
+    let Some(info_end) = addr.checked_add(total_size) else {
+        return Info {
+            usable_memory: usable,
+            regions,
+            region_count,
+        };
+    };
     let mut p = (addr + 8) as *const u8; // skip total_size + reserved
 
-    loop {
+    while (p as usize).saturating_add(core::mem::size_of::<TagHeader>()) <= info_end {
         let header = p as *const TagHeader;
         let ty = (*header).ty;
         let size = (*header).size as usize;
 
-        if ty == TAG_END {
+        if ty == TAG_END || size < core::mem::size_of::<TagHeader>() {
+            break;
+        }
+        if (p as usize).saturating_add(size) > info_end {
             break;
         }
 
         if ty == TAG_MMAP {
             let esz = *((p as *const u32).add(2)) as usize; // entry_size at p+8
+            if esz < core::mem::size_of::<MmapEntry>() || size < 16 {
+                break;
+            }
             let mut e = p.add(16); // skip header(8) + entry_size(4) + version(4)
             let end = p.add(size);
             while e.add(esz) <= end {
                 let ent = e as *const MmapEntry;
                 if (*ent).ty == 1 {
                     // type 1 == available RAM
-                    usable += (*ent).length;
+                    usable = usable.saturating_add((*ent).length);
                 }
                 // Save to our small static buffer if room.
                 if region_count < regions.len() {
@@ -82,7 +96,11 @@ pub unsafe fn parse(addr: usize) -> Info {
         }
 
         // Tags are 8-byte aligned. Advance to the next one.
-        p = p.add((size + 7) & !7);
+        let next = (p as usize).saturating_add((size + 7) & !7);
+        if next <= p as usize || next > info_end {
+            break;
+        }
+        p = next as *const u8;
     }
 
     Info {

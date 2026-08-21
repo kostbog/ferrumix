@@ -7,6 +7,9 @@
 
 #![no_std]
 #![no_main]
+// Early boot and descriptor-table code must touch `static mut` storage before a
+// full kernel memory model exists. Keep these uses small and isolated.
+#![allow(static_mut_refs)]
 
 mod boot;
 mod gdt;

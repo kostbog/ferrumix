@@ -55,10 +55,15 @@ pub struct Descriptor {
 
 pub static mut IDT: [Entry; 256] = [Entry::missing(); 256];
 
+/// Load the global IDT with `lidt`.
+///
+/// # Safety
+/// Call only after all active IDT entries point at valid interrupt stubs and
+/// before enabling interrupts that may use those entries.
 pub unsafe fn load() {
     let desc = Descriptor {
         limit: (core::mem::size_of::<[Entry; 256]>() - 1) as u16,
         base: &IDT as *const _ as u64,
     };
-    asm!("lidt ({0})", in(reg) &desc, options(nostack, preserves_flags));
+    asm!("lidt [{0}]", in(reg) &desc, options(nostack, preserves_flags));
 }

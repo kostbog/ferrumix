@@ -68,28 +68,35 @@ pub fn init() {
         GDT[3] = 0x0000F20000000000;
         GDT[4] = 0x0020FA0000000000;
 
-        let tss_addr = &TSS as *const Tss as u64;
+        let tss_addr = core::ptr::addr_of!(TSS) as u64;
         let tss_limit = (core::mem::size_of::<Tss>() - 1) as u64;
 
+        // 64-bit TSS descriptors are 16 bytes wide. The low qword contains
+        // limit[0..20], base[0..32], and access/flags; the high qword contains
+        // base[32..64]. Missing any base byte makes `ltr` load the wrong TSS.
         let low: u64 = (tss_limit & 0xFFFF)
             | ((tss_addr & 0xFFFF) << 16)
+            | (((tss_addr >> 16) & 0xFF) << 32)
             | (0x89u64 << 40)
-            | (((tss_limit >> 16) & 0xF) << 48);
+            | (((tss_limit >> 16) & 0xF) << 48)
+            | (((tss_addr >> 24) & 0xFF) << 56);
         let high: u64 = (tss_addr >> 32) & 0xFFFFFFFF;
 
         GDT[5] = low;
         GDT[6] = high;
 
-        let ist_top = (&IST_STACK as *const u8 as u64) + IST_STACK.len() as u64;
-        let r0_top = (&RING0_STACK as *const u8 as u64) + RING0_STACK.len() as u64;
+        let ist_top = (core::ptr::addr_of!(IST_STACK) as u64)
+            + core::mem::size_of::<[u8; 8192]>() as u64;
+        let r0_top = (core::ptr::addr_of!(RING0_STACK) as u64)
+            + core::mem::size_of::<[u8; 16384]>() as u64;
         TSS.ist[0] = ist_top;
         TSS.rsp0 = r0_top;
 
         let desc = GdtDescriptor {
             limit: (core::mem::size_of::<[u64; 7]>() - 1) as u16,
-            base: &GDT as *const _ as u64,
+            base: core::ptr::addr_of!(GDT) as u64,
         };
-        asm!("lgdt ({0})", in(reg) &desc, options(nostack, preserves_flags));
+        asm!("lgdt [{0}]", in(reg) &desc, options(nostack, preserves_flags));
         asm!(
             "mov ds, ax; mov es, ax; mov ss, ax",
             in("ax") KERNEL_DATA_SELECTOR,

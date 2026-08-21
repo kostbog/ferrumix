@@ -179,8 +179,7 @@ CI jobs that must stay green:
 - QEMU `boot-test` (debug and release)
 
 Clippy on the freestanding target is run with `-D warnings` in the
-Makefile but is allowed to be non-blocking (`|| true`). Still fix
-warnings you introduce.
+Makefile and must stay blocking. Fix warnings before opening a PR.
 
 ## Commit messages
 

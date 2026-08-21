@@ -1,6 +1,6 @@
 # Ferrumix
 
-![CI](https://github.com/kostbog/ferrumix/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/kostbog/ferrumix/actions/workflows/test.yml/badge.svg)
 
 > *ferrum* (Latin for "iron") + *ix* — a Unix clone written in Rust.
 
@@ -70,7 +70,8 @@ paging introspection, GDT with ring-3 segments, a process table,
   - `reboot` — PS/2 keyboard controller reset
 
 **Dependencies:** zero external crates. Only `core` + stable Rust
-(`asm!`, `global_asm!`, `extern "x86-interrupt"`).
+(`asm!`, `global_asm!`). Interrupt entry stubs are written in assembly so
+the kernel does not require the unstable `extern "x86-interrupt"` ABI.
 
 ## Build and run
 
@@ -79,7 +80,7 @@ Required: Rust (stable, ≥ 1.69), the `x86_64-unknown-none` target, QEMU.
 ```bash
 # 1. Install the target and (if needed) rust-lld
 rustup target add x86_64-unknown-none
-rustup component add llvm-tools-preview   # provides rust-lld, if the linker needs it
+rustup component add llvm-tools-preview rustfmt clippy   # llvm-tools provides rust-lld if needed
 
 # 2. Build the kernel
 cargo build --target x86_64-unknown-none
@@ -142,7 +143,7 @@ ferrumix>
 
 ## Continuous Integration — all tests & builds on GitHub
 
-All builds and tests run in **GitHub Actions** (`.github/workflows/ci.yml`) — this is the
+All builds and tests run in **GitHub Actions** (`.github/workflows/test.yml`) — this is the
 authoritative verification. Local `make test` mirrors the same checks for convenience.
 
 CI jobs:

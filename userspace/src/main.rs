@@ -10,6 +10,13 @@
 
 mod syscall;
 
+use core::panic::PanicInfo;
+
+#[panic_handler]
+fn panic(_info: &PanicInfo) -> ! {
+    syscall::exit(101);
+}
+
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     syscall::write(1, b"hello from ferrumix userspace\n");

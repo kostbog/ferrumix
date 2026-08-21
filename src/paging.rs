@@ -36,12 +36,20 @@ pub fn current_pml4_addr() -> u64 {
 }
 
 /// Return a mutable reference to the active PML4 (identity mapped, so phys==virt for first GiB).
+///
+/// # Safety
+/// Caller must ensure exclusive access to the active page tables and must flush
+/// affected TLB entries after modifying mappings.
 pub unsafe fn pml4_mut() -> &'static mut [u64; 512] {
     &mut pml4_table
 }
 
 /// Translate a virtual address using the current tables (software walk, identity-mapped tables).
 /// Returns Some(phys) if mapped.
+///
+/// # Safety
+/// The active page tables must be identity-mapped and stable while the software
+/// walk reads them.
 pub unsafe fn translate_virt(virt: u64) -> Option<u64> {
     let pml4 = &pml4_table;
     let pml4_idx = ((virt >> 39) & 0x1FF) as usize;

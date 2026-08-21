@@ -5,39 +5,139 @@ use crate::idt;
 use crate::port;
 use core::arch::asm;
 
-#[repr(C)]
-pub struct InterruptStackFrame {
-    pub rip: u64,
-    pub cs: u64,
-    pub rflags: u64,
-    pub rsp: u64,
-    pub ss: u64,
+core::arch::global_asm!(
+    r#"
+    .macro PUSH_REGS
+        push r15
+        push r14
+        push r13
+        push r12
+        push r11
+        push r10
+        push r9
+        push r8
+        push rbp
+        push rdi
+        push rsi
+        push rdx
+        push rcx
+        push rbx
+        push rax
+    .endm
+
+    .macro POP_REGS
+        pop rax
+        pop rbx
+        pop rcx
+        pop rdx
+        pop rsi
+        pop rdi
+        pop rbp
+        pop r8
+        pop r9
+        pop r10
+        pop r11
+        pop r12
+        pop r13
+        pop r14
+        pop r15
+    .endm
+
+    .global default_exception_stub
+    .type default_exception_stub, @function
+default_exception_stub:
+        PUSH_REGS
+        mov rdi, [rsp + 15*8]
+        call default_exception_handler
+        POP_REGS
+        iretq
+
+    .global breakpoint_stub
+    .type breakpoint_stub, @function
+breakpoint_stub:
+        PUSH_REGS
+        mov rdi, [rsp + 15*8]
+        call breakpoint_handler
+        POP_REGS
+        iretq
+
+    .global double_fault_stub
+    .type double_fault_stub, @function
+double_fault_stub:
+        PUSH_REGS
+        mov rdi, [rsp + 15*8 + 8]
+        mov rsi, [rsp + 15*8]
+        call double_fault_handler
+        POP_REGS
+        add rsp, 8
+        iretq
+
+    .global page_fault_stub
+    .type page_fault_stub, @function
+page_fault_stub:
+        PUSH_REGS
+        mov rdi, [rsp + 15*8 + 8]
+        mov rsi, [rsp + 15*8]
+        call page_fault_handler
+        POP_REGS
+        add rsp, 8
+        iretq
+
+    .global timer_stub
+    .type timer_stub, @function
+timer_stub:
+        PUSH_REGS
+        call timer_handler
+        POP_REGS
+        iretq
+
+    .global keyboard_stub
+    .type keyboard_stub, @function
+keyboard_stub:
+        PUSH_REGS
+        call keyboard_handler
+        POP_REGS
+        iretq
+"#
+);
+
+extern "C" {
+    fn default_exception_stub();
+    fn breakpoint_stub();
+    fn double_fault_stub();
+    fn page_fault_stub();
+    fn timer_stub();
+    fn keyboard_stub();
 }
 
-extern "x86-interrupt" fn default_handler(frame: &mut InterruptStackFrame) {
-    crate::serial::serial_println!("EXCEPTION @ {:#x} (default handler)", frame.rip);
+#[no_mangle]
+extern "C" fn default_exception_handler(rip: u64) {
+    crate::serial::serial_println!("EXCEPTION @ {:#x} (default handler)", rip);
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }
 }
 
-extern "x86-interrupt" fn breakpoint(frame: &mut InterruptStackFrame) {
-    crate::serial::serial_println!("BREAKPOINT @ {:#x}", frame.rip);
+#[no_mangle]
+extern "C" fn breakpoint_handler(rip: u64) {
+    crate::serial::serial_println!("BREAKPOINT @ {:#x}", rip);
 }
 
-extern "x86-interrupt" fn double_fault(frame: &mut InterruptStackFrame, code: u64) {
-    crate::serial::serial_println!("DOUBLE FAULT (error={}) @ {:#x}", code, frame.rip);
+#[no_mangle]
+extern "C" fn double_fault_handler(rip: u64, code: u64) {
+    crate::serial::serial_println!("DOUBLE FAULT (error={}) @ {:#x}", code, rip);
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }
 }
 
-extern "x86-interrupt" fn page_fault(frame: &mut InterruptStackFrame, code: u64) {
+#[no_mangle]
+extern "C" fn page_fault_handler(rip: u64, code: u64) {
     let cr2: u64;
     unsafe { asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack)) };
     crate::serial::serial_println!(
         "PAGE FAULT @ {:#x} (cr2={:#x}, err={:#x})",
-        frame.rip,
+        rip,
         cr2,
         code
     );
@@ -53,7 +153,8 @@ pub fn get_ticks() -> u64 {
     unsafe { TICKS }
 }
 
-extern "x86-interrupt" fn timer_handler(_frame: &mut InterruptStackFrame) {
+#[no_mangle]
+extern "C" fn timer_handler() {
     unsafe {
         TICKS += 1;
         if TICKS % 1000 == 0 {
@@ -63,7 +164,8 @@ extern "x86-interrupt" fn timer_handler(_frame: &mut InterruptStackFrame) {
     unsafe { port::outb(0x20, 0x20) };
 }
 
-extern "x86-interrupt" fn keyboard_handler(_frame: &mut InterruptStackFrame) {
+#[no_mangle]
+extern "C" fn keyboard_handler() {
     let scan = unsafe { port::inb(0x60) };
     // Only handle key-down events (bit 7 clear)
     if scan & 0x80 == 0 {
@@ -136,15 +238,15 @@ fn scancode_to_ascii(s: u8) -> Option<char> {
 pub fn init() {
     unsafe {
         for i in 0..32 {
-            idt::IDT[i].set_handler(default_handler as usize as u64);
+            idt::IDT[i].set_handler(default_exception_stub as usize as u64);
         }
-        idt::IDT[3].set_handler(breakpoint as usize as u64);
-        idt::IDT[8].set_handler(double_fault as usize as u64);
+        idt::IDT[3].set_handler(breakpoint_stub as usize as u64);
+        idt::IDT[8].set_handler(double_fault_stub as usize as u64);
         idt::IDT[8].ist = 1;
-        idt::IDT[14].set_handler(page_fault as usize as u64);
+        idt::IDT[14].set_handler(page_fault_stub as usize as u64);
 
-        idt::IDT[32].set_handler(timer_handler as usize as u64);
-        idt::IDT[33].set_handler(keyboard_handler as usize as u64);
+        idt::IDT[32].set_handler(timer_stub as usize as u64);
+        idt::IDT[33].set_handler(keyboard_stub as usize as u64);
 
         idt::IDT[0x80].set_handler_with_dpl(crate::syscall::syscall_int80_entry as usize as u64, 3);
 
