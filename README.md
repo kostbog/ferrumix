@@ -214,6 +214,11 @@ ferrumix/
    buffered by the keyboard interrupt handler, read by the shell, echoed to VGA,
    and assembled into a line.  On Enter, the line is dispatched as a command.
 
+## Contributing
+
+Patches are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the
+`no_std` / no-crates rules, how the QEMU boot test works, and the PR checklist.
+
 ## Next steps
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md): higher-half mapping, per-process page tables,
