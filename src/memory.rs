@@ -7,8 +7,8 @@
 //! Frame size is 4 KiB.  The kernel image (1 MiB .. __kernel_end) and low
 //! memory <1 MiB (where BIOS / Multiboot / VGA etc. live) are excluded.
 
-use crate::spinlock::Spinlock;
-use crate::multiboot::{Info, MemoryRegion};
+use crate::multiboot::Info;
+use crate::spinlock::IntSpinlock;
 
 pub const FRAME_SIZE: u64 = 4096;
 
@@ -90,7 +90,7 @@ impl FrameAllocator {
             }
 
             // Skip low memory <1 MiB to avoid clobbering BIOS / VGA / boot structures.
-            const LOW_MEM_CUTOFF: u64 = 1 * 1024 * 1024;
+            const LOW_MEM_CUTOFF: u64 = 1024 * 1024;
             if start < LOW_MEM_CUTOFF {
                 start = LOW_MEM_CUTOFF;
                 start = (start + FRAME_SIZE - 1) & !(FRAME_SIZE - 1);
@@ -190,7 +190,7 @@ impl FrameAllocator {
     }
 }
 
-static FRAME_ALLOCATOR: Spinlock<FrameAllocator> = Spinlock::new(FrameAllocator::new());
+static FRAME_ALLOCATOR: IntSpinlock<FrameAllocator> = IntSpinlock::new(FrameAllocator::new());
 
 /// Initialise the global frame allocator from Multiboot info.
 pub fn init(info: &Info) {

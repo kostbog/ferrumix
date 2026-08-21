@@ -27,20 +27,15 @@ impl Entry {
         }
     }
 
+    /// Install a ring-0 interrupt gate.
     pub fn set_handler(&mut self, handler: u64) {
-        self.gdt_selector = 0x08;
-        self.ist = 0;
-        self.type_attr = 0x8E;
-        self.pointer_low = handler as u16;
-        self.pointer_mid = (handler >> 16) as u16;
-        self.pointer_high = (handler >> 32) as u32;
+        self.set_handler_with_dpl(handler, 0);
     }
 
+    /// Install an interrupt gate callable from privilege level `dpl`.
     pub fn set_handler_with_dpl(&mut self, handler: u64, dpl: u8) {
-        let type_attr = 0x80 | ((dpl & 0x3) << 5) | 0x0E;
-        self.gdt_selector = 0x08;
-        self.ist = 0;
-        self.type_attr = type_attr;
+        self.gdt_selector = crate::gdt::KERNEL_CODE_SELECTOR;
+        self.type_attr = 0x80 | ((dpl & 0x3) << 5) | 0x0e;
         self.pointer_low = handler as u16;
         self.pointer_mid = (handler >> 16) as u16;
         self.pointer_high = (handler >> 32) as u32;
@@ -53,12 +48,26 @@ pub struct Descriptor {
     pub base: u64,
 }
 
-pub static mut IDT: [Entry; 256] = [Entry::missing(); 256];
+static mut IDT: [Entry; 256] = [Entry::missing(); 256];
 
+/// Mutable access to one IDT entry.
+///
+/// # Safety
+/// The caller must not race with interrupt delivery on the same vector.
+pub unsafe fn entry(vector: usize) -> &'static mut Entry {
+    let table = core::ptr::addr_of_mut!(IDT);
+    &mut (*table)[vector]
+}
+
+/// Load the IDT into the CPU.
+///
+/// # Safety
+/// Every entry that can be triggered must have been initialised.
 pub unsafe fn load() {
-    let desc = Descriptor {
+    let table = core::ptr::addr_of!(IDT);
+    let descriptor = Descriptor {
         limit: (core::mem::size_of::<[Entry; 256]>() - 1) as u16,
-        base: &IDT as *const _ as u64,
+        base: table as u64,
     };
-    asm!("lidt ({0})", in(reg) &desc, options(nostack, preserves_flags));
+    asm!("lidt [{}]", in(reg) &descriptor, options(readonly, nostack, preserves_flags));
 }

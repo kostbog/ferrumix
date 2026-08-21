@@ -1,14 +1,21 @@
 //! Ferrumix — a tiny Unix-like kernel in Rust.
 //!
-//! Entry flow:
-//!   boot.S  -> long mode, then `call kernel_main(magic, mb_info)`
-//!   here    -> initialise drivers, memory, process table, syscall gate,
-//!             VFS, enable interrupts, launch interactive shell.
+//! Boot flow:
+//!
+//! ```text
+//!   boot.S   32-bit Multiboot2 entry, page tables, long mode
+//!   main.rs  console -> memory -> paging -> GDT/TSS -> processes -> VFS
+//!            -> interrupts -> syscalls -> run an ELF program in ring 3
+//!            -> interactive shell
+//! ```
 
 #![no_std]
 #![no_main]
 
 mod boot;
+mod console;
+mod elf;
+mod fd;
 mod gdt;
 mod idt;
 mod interrupts;
@@ -22,6 +29,9 @@ mod serial;
 mod shell;
 mod spinlock;
 mod syscall;
+mod uaccess;
+mod user_program;
+mod usermode;
 mod vfs;
 mod vga;
 
@@ -35,11 +45,12 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
 
     println!("Ferrumix 0.1.0 — a tiny Unix-like kernel in Rust");
     println!("boot magic: {:#x}, multiboot info @ {:#x}", magic, mb_info);
-    if magic != 0x36d76289 {
+    if magic != 0x36d7_6289 {
         println!("WARNING: unexpected Multiboot2 magic");
     }
+    console::init();
 
-    let info = unsafe { multiboot::Info::parse(mb_info as usize) };
+    let info = unsafe { multiboot::parse(mb_info as usize) };
     println!(
         "detected usable RAM: {} MiB ({} regions)",
         info.usable_memory / (1024 * 1024),
@@ -48,31 +59,42 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
 
     memory::init(&info);
     paging::init();
+
     gdt::init();
-    println!("GDT + TSS initialised (kernel + user segments, IST)");
+    println!("GDT + TSS initialised (kernel + ring-3 segments, IST, rsp0)");
 
     process::init();
-    println!("process table: pid {} running, {} total", process::current_pid(), process::process_count());
+    println!(
+        "process table: pid {} running, {} entries used",
+        process::current_pid(),
+        process::process_count()
+    );
 
     vfs::init();
-    println!("VFS initialised: devfs with null, zero, tty");
 
     interrupts::init();
     println!("IDT + PIC + PIT initialised; interrupts enabled");
-    println!("syscall gate: int 0x80 DPL=3 installed (read, write, open, close, exit, getpid)");
+    syscall::init();
 
-    if let Some(f1) = memory::alloc_frame() {
-        println!("memory: allocated frame @ {:#x}", f1);
+    if let Some(frame) = memory::alloc_frame() {
         let (total, used, free) = memory::stats();
-        println!("memory: total {} used {} free {}", total, used, free);
-        memory::free_frame(f1);
-        println!("memory: freed frame @ {:#x} (free list works)", f1);
+        println!(
+            "memory: frame {:#x} allocated, {} total / {} used / {} free",
+            frame, total, used, free
+        );
+        memory::free_frame(frame);
     }
 
     println!("Ferrumix is alive.");
-    println!("Unix step complete: ring3 GDT, frame allocator, syscall int 0x80, process table, VFS devfs");
 
-    // Launch the interactive shell
+    // Load the embedded ELF program and run it in ring 3.  This exercises the
+    // whole chain: address space creation, ELF parsing, stack mapping, the
+    // privilege switch and system calls coming back from user space.
+    match usermode::exec("hello", user_program::hello_elf()) {
+        Ok(status) => println!("init: ring 3 program finished with status {}", status),
+        Err(err) => println!("init: could not run the ring 3 program: {:?}", err),
+    }
+
     shell::run()
 }
 

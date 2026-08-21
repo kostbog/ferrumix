@@ -40,7 +40,7 @@ mb2_end:
 .section .text
 .align 8
 .global _start
-bits 32
+.code32
 _start:
     /* Preserve boot args (EAX=magic, EBX=mb_info) in callee-saved regs. */
     movl %eax, %ebp
@@ -102,7 +102,7 @@ _start:
     lgdt gdt64_pointer
     ljmp $0x08, $long_mode_entry
 
-bits 64
+.code64
 long_mode_entry:
     /* Reload data segment registers for long mode (data selector 0x10). */
     movw $0x10, %ax

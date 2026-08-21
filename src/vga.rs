@@ -1,12 +1,13 @@
-//! VGA text-mode framebuffer writer (0xB8000), with a `core::fmt::Write`
-//! implementation and `print!`/`println!` macros.
+//! VGA text-mode framebuffer driver (0xB8000).
 //!
-//! Every write is mirrored to the serial port as well, so a headless QEMU
-//! (`-serial stdio -display none`) still shows all kernel output.
+//! This is the "screen" half of the console: an 80x25 character grid with a
+//! colour attribute per cell, line wrapping, scrolling and a hardware cursor.
+//! Higher layers (see [`crate::console`]) decide whether text goes here, to
+//! the serial port, or to both.
 
-use core::fmt;
-use crate::serial;
+use crate::port;
 use crate::spinlock::IntSpinlock;
+use core::fmt;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -30,14 +31,15 @@ pub enum Color {
     White = 15,
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 struct ScreenChar {
     ascii: u8,
     color: u8,
 }
 
-const WIDTH: usize = 80;
-const HEIGHT: usize = 25;
+pub const WIDTH: usize = 80;
+pub const HEIGHT: usize = 25;
 const VGA_ADDR: usize = 0xb8000;
 
 pub struct Writer {
@@ -73,12 +75,13 @@ impl Writer {
         };
         for i in 0..WIDTH * HEIGHT {
             unsafe {
-                let p = (VGA_ADDR as *mut ScreenChar).add(i);
-                core::ptr::write_volatile(p, blank);
+                let cell = (VGA_ADDR as *mut ScreenChar).add(i);
+                core::ptr::write_volatile(cell, blank);
             }
         }
         self.col = 0;
         self.row = 0;
+        self.update_cursor();
     }
 
     fn newline(&mut self) {
@@ -92,25 +95,25 @@ impl Writer {
 
     fn scroll(&mut self) {
         unsafe {
-            let p = VGA_ADDR as *mut ScreenChar;
+            let base = VGA_ADDR as *mut ScreenChar;
             for i in 0..WIDTH * (HEIGHT - 1) {
-                let c = core::ptr::read_volatile(p.add(i + WIDTH));
-                core::ptr::write_volatile(p.add(i), c);
+                let cell = core::ptr::read_volatile(base.add(i + WIDTH));
+                core::ptr::write_volatile(base.add(i), cell);
             }
             let blank = ScreenChar {
                 ascii: b' ',
                 color: self.color_code(),
             };
             for i in (WIDTH * (HEIGHT - 1))..(WIDTH * HEIGHT) {
-                core::ptr::write_volatile(p.add(i), blank);
+                core::ptr::write_volatile(base.add(i), blank);
             }
         }
         self.row = HEIGHT - 1;
         self.col = 0;
     }
 
-    pub fn write_byte(&mut self, b: u8) {
-        match b {
+    pub fn write_byte(&mut self, byte: u8) {
+        match byte {
             b'\n' => self.newline(),
             b'\r' => self.col = 0,
             b'\t' => {
@@ -119,15 +122,13 @@ impl Writer {
                 }
             }
             0x20..=0x7e => {
+                let cell = ScreenChar {
+                    ascii: byte,
+                    color: self.color_code(),
+                };
                 unsafe {
-                    let p = (VGA_ADDR as *mut ScreenChar).add(self.row * WIDTH + self.col);
-                    core::ptr::write_volatile(
-                        p,
-                        ScreenChar {
-                            ascii: b,
-                            color: self.color_code(),
-                        },
-                    );
+                    let slot = (VGA_ADDR as *mut ScreenChar).add(self.row * WIDTH + self.col);
+                    core::ptr::write_volatile(slot, cell);
                 }
                 self.col += 1;
                 if self.col >= WIDTH {
@@ -136,44 +137,32 @@ impl Writer {
             }
             _ => self.write_byte(0xfe),
         }
+        self.update_cursor();
     }
 
-    pub fn write_string(&mut self, s: &str) {
-        for b in s.bytes() {
-            self.write_byte(b);
+    pub fn write_string(&mut self, text: &str) {
+        for byte in text.bytes() {
+            self.write_byte(byte);
+        }
+    }
+
+    /// Move the blinking hardware cursor to the current position.
+    fn update_cursor(&self) {
+        let pos = (self.row * WIDTH + self.col) as u16;
+        unsafe {
+            port::outb(0x3d4, 0x0f);
+            port::outb(0x3d5, (pos & 0xff) as u8);
+            port::outb(0x3d4, 0x0e);
+            port::outb(0x3d5, (pos >> 8) as u8);
         }
     }
 }
 
 impl fmt::Write for Writer {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write_string(s);
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        self.write_string(text);
         Ok(())
     }
 }
 
 pub static WRITER: IntSpinlock<Writer> = IntSpinlock::new(Writer::new());
-
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => ($crate::vga::_print(format_args!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! println {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ({
-        $crate::vga::_print(format_args!($($arg)*));
-        $crate::print!("\n");
-    });
-}
-
-#[doc(hidden)]
-pub fn _print(args: fmt::Arguments) {
-    use core::fmt::Write;
-    // `fmt::Error` is not `Debug`, so we can't `.unwrap()` the result; a write
-    // failure here is non-fatal for the kernel, so we simply ignore it.
-    let _ = WRITER.lock().write_fmt(args);
-    // Mirror to serial so headless runs are observable.
-    let _ = serial::SERIAL.lock().write_fmt(args);
-}

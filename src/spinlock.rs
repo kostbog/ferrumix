@@ -11,6 +11,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 // ── Basic spinlock ──────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 pub struct Spinlock<T> {
     locked: AtomicBool,
     data: UnsafeCell<T>,
@@ -18,6 +19,7 @@ pub struct Spinlock<T> {
 
 unsafe impl<T: Send> Sync for Spinlock<T> {}
 
+#[allow(dead_code)]
 impl<T> Spinlock<T> {
     pub const fn new(data: T) -> Self {
         Spinlock {
@@ -117,6 +119,8 @@ impl<'a, T> Drop for IntSpinlockGuard<'a, T> {
     fn drop(&mut self) {
         self.lock.locked.store(false, Ordering::Release);
         // Re-enable interrupts if they were enabled before we acquired the lock.
-        unsafe { crate::port::popcli(self.was_enabled); }
+        unsafe {
+            crate::port::popcli(self.was_enabled);
+        }
     }
 }
