@@ -112,8 +112,11 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("KERNEL PANIC: {}", info);
-    crate::serial_println!("KERNEL PANIC: {}", info);
+    // Report through the lock-free serial writer: the panic may well have
+    // happened while the console lock was held, and a deadlock here would
+    // hide the message completely.
+    use core::fmt::Write;
+    let _ = writeln!(serial::RawSerial, "\nKERNEL PANIC: {}", info);
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }

@@ -65,6 +65,25 @@ pub fn init() {
     }
 }
 
+/// A lock-free COM1 writer for panics and early boot traces.
+///
+/// The normal [`SERIAL`] writer takes a lock; if the kernel panics *while*
+/// that lock is held, reporting the panic through it would deadlock, so the
+/// panic path formats into this one instead.
+pub struct RawSerial;
+
+impl fmt::Write for RawSerial {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        for byte in text.bytes() {
+            if byte == b'\n' {
+                trace(b'\r');
+            }
+            trace(byte);
+        }
+        Ok(())
+    }
+}
+
 /// Write one raw byte to COM1 without locking or waiting.
 ///
 /// Used for early boot traces, before (or while debugging) the locking
