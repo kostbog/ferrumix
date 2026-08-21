@@ -12,6 +12,9 @@
 //!   fd 3+ open()   /dev/tty, /dev/ttyS0, /dev/null, /dev/zero, /dev/console
 //! ```
 
+// Descriptor helpers kept for upcoming users.
+#![allow(dead_code)]
+
 use crate::console::Target;
 use crate::spinlock::IntSpinlock;
 
@@ -133,5 +136,9 @@ pub fn close(fd: usize) -> bool {
 /// Number of descriptors currently open.
 pub fn open_count() -> usize {
     let table = TABLE.lock();
-    table.slots.iter().filter(|k| **k != FileKind::Closed).count()
+    table
+        .slots
+        .iter()
+        .filter(|kind| **kind != FileKind::Closed)
+        .count()
 }

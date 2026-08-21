@@ -171,15 +171,16 @@ fn cmd_console(args: &str) {
 fn cmd_ps() {
     let mut buf = [process::Process::empty(); 16];
     let count = process::snapshot(&mut buf);
-    crate::println!("  PID  PPID STATE     CR3          NAME");
-    for entry in buf.iter().take(count) {
+    crate::println!("  PID  PPID STATE     CR3            ENTRY          NAME");
+    for proc in buf.iter().take(count) {
         crate::println!(
-            "  {:<4} {:<4} {:<9} {:#012x} {}",
-            entry.pid,
-            entry.ppid,
-            entry.state.as_str(),
-            entry.root,
-            entry.name()
+            "  {:<4} {:<4} {:<9} {:#014x} {:#014x} {}",
+            proc.pid,
+            proc.ppid,
+            proc.state.as_str(),
+            proc.root,
+            proc.entry,
+            proc.name()
         );
     }
 }

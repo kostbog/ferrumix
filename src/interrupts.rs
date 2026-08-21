@@ -336,13 +336,15 @@ fn exception(frame: &mut TrapFrame) -> ! {
     );
     if vector == 14 {
         let err = frame.error_code;
+        let cause = if err & 1 != 0 { "protection" } else { "absent" };
+        let access = if err & 2 != 0 { "write" } else { "read" };
+        let origin = if err & 4 != 0 { "user" } else { "kernel" };
         crate::println!(
-            "  page fault: addr={:#x} [{}{}{}{}]",
+            "  page fault: address {:#x} ({}, {}, from {})",
             cr2,
-            if err & 1 != 0 { "protection" } else { "not-present" },
-            if err & 2 != 0 { " write" } else { " read" },
-            if err & 4 != 0 { " user" } else { " kernel" },
-            if err & 16 != 0 { " exec" } else { "" }
+            cause,
+            access,
+            origin
         );
     }
 
@@ -462,7 +464,7 @@ unsafe fn remap_pic() {
 }
 
 unsafe fn init_pit() {
-    let divisor: u16 = 1193182 / 100;
+    let divisor: u16 = (1_193_182u32 / 100) as u16;
     port::outb(0x43, 0x36);
     port::outb(0x40, (divisor & 0xff) as u8);
     port::outb(0x40, (divisor >> 8) as u8);

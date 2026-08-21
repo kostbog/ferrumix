@@ -12,6 +12,9 @@
 //!   /dev/console screen and/or serial, following the console target
 //! ```
 
+// Node types exist for the future ramfs.
+#![allow(dead_code)]
+
 use crate::spinlock::IntSpinlock;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

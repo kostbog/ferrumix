@@ -7,6 +7,9 @@
 //! Frame size is 4 KiB.  The kernel image (1 MiB .. __kernel_end) and low
 //! memory <1 MiB (where BIOS / Multiboot / VGA etc. live) are excluded.
 
+// Allocator helpers kept for upcoming users.
+#![allow(dead_code)]
+
 use crate::multiboot::Info;
 use crate::spinlock::IntSpinlock;
 

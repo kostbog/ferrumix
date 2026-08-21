@@ -26,6 +26,9 @@
 //!   0x0000_0080_0000_0000 ..                         user space (PML4[1])
 //! ```
 
+// The VM API is deliberately complete, even where the kernel does not use it yet.
+#![allow(dead_code)]
+
 use crate::memory;
 use core::arch::asm;
 use core::sync::atomic::{AtomicBool, Ordering};
@@ -377,11 +380,12 @@ pub fn entry_of(virt: u64) -> Option<(u64, u64)> {
 
 /// Render page-table flags as a short `pwux4` style string.
 pub fn flags_string(flags: u64, out: &mut [u8; 8]) -> usize {
-    out[0] = if flags & ENTRY_PRESENT != 0 { b'p' } else { b'-' };
-    out[1] = if flags & ENTRY_WRITABLE != 0 { b'w' } else { b'r' };
-    out[2] = if flags & ENTRY_USER != 0 { b'u' } else { b'k' };
-    out[3] = if flags & ENTRY_NX != 0 { b'-' } else { b'x' };
-    out[4] = if flags & ENTRY_HUGE != 0 { b'H' } else { b'4' };
+    let bit = |mask: u64, yes: u8, no: u8| if flags & mask != 0 { yes } else { no };
+    out[0] = bit(ENTRY_PRESENT, b'p', b'-');
+    out[1] = bit(ENTRY_WRITABLE, b'w', b'r');
+    out[2] = bit(ENTRY_USER, b'u', b'k');
+    out[3] = bit(ENTRY_NX, b'-', b'x');
+    out[4] = bit(ENTRY_HUGE, b'H', b'4');
     5
 }
 
@@ -482,7 +486,7 @@ pub fn nx_enabled() -> bool {
 
 /// Enable the no-execute bit (EFER.NXE) if the CPU advertises it.
 fn enable_nx() -> bool {
-    let supported = unsafe { core::arch::x86_64::__cpuid(0x8000_0001).edx & (1 << 20) != 0 };
+    let supported = core::arch::x86_64::__cpuid(0x8000_0001).edx & (1 << 20) != 0;
     if !supported {
         return false;
     }

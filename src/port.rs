@@ -1,5 +1,8 @@
 //! Minimal x86 port I/O helpers (no external crates).
 
+// Not every port helper is used yet; they are part of the driver toolkit.
+#![allow(dead_code)]
+
 use core::arch::asm;
 
 /// Write a byte to an I/O port.

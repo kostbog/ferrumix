@@ -18,6 +18,9 @@
 //!   0x28 TSS (16 byte descriptor, occupies slots 5 and 6)
 //! ```
 
+// Selector constants are part of the ABI even when unused today.
+#![allow(dead_code)]
+
 use core::arch::asm;
 
 #[repr(C, packed)]
@@ -121,7 +124,7 @@ pub fn init() {
 
 /// Top of the stack the CPU switches to on a ring3 -> ring0 transition.
 pub fn kernel_stack_top() -> u64 {
-    unsafe { core::ptr::addr_of!(RING0_STACK) as u64 + 32768 }
+    core::ptr::addr_of!(RING0_STACK) as u64 + 32768
 }
 
 /// Point `TSS.rsp0` at a different kernel stack (used when scheduling).

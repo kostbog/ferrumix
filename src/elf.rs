@@ -18,6 +18,9 @@
 //! The parser reads the headers byte by byte (little endian) so it never
 //! depends on the alignment of the image buffer.
 
+// ELF constants are part of the format, not all are needed by the loader.
+#![allow(dead_code)]
+
 use crate::paging;
 use crate::uaccess;
 

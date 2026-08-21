@@ -14,6 +14,9 @@
 //! be forced to one specific sink with [`write_bytes_to`] — that is how the
 //! `/dev/tty` (screen) and `/dev/ttyS0` (serial) devices are implemented.
 
+// Console helpers kept for upcoming users.
+#![allow(dead_code)]
+
 use crate::serial;
 use crate::vga;
 use core::fmt;

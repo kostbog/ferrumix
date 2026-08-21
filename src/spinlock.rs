@@ -5,13 +5,15 @@
 //!   - `IntSpinlock<T>`: spinlock that disables interrupts while held,
 //!     preventing deadlocks when the interrupt handler also needs the lock.
 
+// Both lock flavours are part of the kernel toolkit.
+#![allow(dead_code)]
+
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
 use core::sync::atomic::{AtomicBool, Ordering};
 
 // ── Basic spinlock ──────────────────────────────────────────────────────
 
-#[allow(dead_code)]
 pub struct Spinlock<T> {
     locked: AtomicBool,
     data: UnsafeCell<T>,
@@ -19,7 +21,6 @@ pub struct Spinlock<T> {
 
 unsafe impl<T: Send> Sync for Spinlock<T> {}
 
-#[allow(dead_code)]
 impl<T> Spinlock<T> {
     pub const fn new(data: T) -> Self {
         Spinlock {
@@ -28,7 +29,7 @@ impl<T> Spinlock<T> {
         }
     }
 
-    pub fn lock(&self) -> SpinlockGuard<T> {
+    pub fn lock(&self) -> SpinlockGuard<'_, T> {
         while self
             .locked
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
@@ -80,7 +81,7 @@ impl<T> IntSpinlock<T> {
         }
     }
 
-    pub fn lock(&self) -> IntSpinlockGuard<T> {
+    pub fn lock(&self) -> IntSpinlockGuard<'_, T> {
         // Disable interrupts before acquiring the lock.
         let was_enabled = unsafe { crate::port::pushcli() };
         while self

@@ -6,6 +6,9 @@
 //! walk first and then copied byte by byte through the identity window, which
 //! is exactly what `copy_from_user` / `copy_to_user` do in a real Unix kernel.
 
+// The full copy_from/copy_to API is provided, not all of it is called yet.
+#![allow(dead_code)]
+
 use crate::paging;
 
 /// Lowest address a user pointer may have (the first page stays unmapped so

@@ -5,6 +5,9 @@
 //! This avoids deadlocks between the interrupt handler (which needs KB lock)
 //! and the shell (which needs WRITER lock for display).
 
+// Buffer helpers kept for upcoming users.
+#![allow(dead_code)]
+
 use crate::spinlock::IntSpinlock;
 
 const CHAR_BUF_SIZE: usize = 512;
