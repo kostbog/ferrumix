@@ -191,6 +191,7 @@ pub fn exec(name: &'static str, image: &[u8]) -> Result<i64, ExecError> {
     }
 
     let root = paging::new_address_space().map_err(ExecError::Vm)?;
+    crate::serial::trace(b'N');
 
     let loaded = match unsafe { elf::load(root, image) } {
         Ok(loaded) => loaded,
@@ -200,6 +201,7 @@ pub fn exec(name: &'static str, image: &[u8]) -> Result<i64, ExecError> {
         }
     };
 
+    crate::serial::trace(b'L');
     let user_rsp = match setup_stack(root, name) {
         Ok(rsp) => rsp,
         Err(err) => {
@@ -208,6 +210,7 @@ pub fn exec(name: &'static str, image: &[u8]) -> Result<i64, ExecError> {
         }
     };
 
+    crate::serial::trace(b'S');
     let pid = match process::create(name, root, loaded.entry) {
         Some(pid) => pid,
         None => {
@@ -216,8 +219,9 @@ pub fn exec(name: &'static str, image: &[u8]) -> Result<i64, ExecError> {
         }
     };
 
+    crate::serial::trace(b'P');
     crate::println!(
-        "elf: {} loaded — entry {:#x}, {} segment(s), {} page(s), brk {:#x}",
+        "elf: {} loaded - entry {:#x}, {} segment(s), {} page(s), brk {:#x}",
         name,
         loaded.entry,
         loaded.segments,
@@ -240,6 +244,7 @@ pub fn exec(name: &'static str, image: &[u8]) -> Result<i64, ExecError> {
     IN_USER.store(true, Ordering::Relaxed);
     process::set_state(pid, process::ProcessState::Running);
 
+    crate::serial::trace(b'X');
     let kernel_root = paging::active_root();
     let status = unsafe {
         paging::switch_to(root);
@@ -248,6 +253,7 @@ pub fn exec(name: &'static str, image: &[u8]) -> Result<i64, ExecError> {
         status
     };
 
+    crate::serial::trace(b'R');
     IN_USER.store(false, Ordering::Relaxed);
     CURRENT_ROOT.store(0, Ordering::Relaxed);
     CURRENT_PID.store(0, Ordering::Relaxed);

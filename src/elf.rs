@@ -192,6 +192,7 @@ fn segment_flags(p_flags: u32) -> u64 {
 /// caller owns the address space and is responsible for tearing it down.
 pub unsafe fn load(root: u64, image: &[u8]) -> Result<LoadedImage, ElfError> {
     let info = inspect(image)?;
+    crate::serial::trace(b'i');
     let phoff = read_u64(image, E_PHOFF) as usize;
     let phentsize = read_u16(image, E_PHENTSIZE) as usize;
 
@@ -227,12 +228,14 @@ pub unsafe fn load(root: u64, image: &[u8]) -> Result<LoadedImage, ElfError> {
         let flags = segment_flags(p_flags) | paging::ENTRY_WRITABLE;
         let mapped = paging::map_alloc(root, page_start, pages, flags).map_err(ElfError::Vm)?;
         pages_total += mapped;
+        crate::serial::trace(b'm');
 
         if p_filesz > 0 {
             let data = &image[p_offset..p_offset + p_filesz];
             uaccess::write_phys_backed(root, p_vaddr, data).map_err(ElfError::Copy)?;
         }
 
+        crate::serial::trace(b'c');
         // Drop the write permission again for read-only segments now that the
         // contents are in place.
         if p_flags & PF_W == 0 {
