@@ -8,3 +8,10 @@ edition = "2021"
 # loaded by the Ferrumix kernel.
 
 [dependencies]
+
+# A freestanding program cannot unwind: abort keeps it self contained.
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

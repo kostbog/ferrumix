@@ -94,6 +94,7 @@ leave_user_mode:
     mov ax, 0x10                 // back to the kernel data selectors
     mov ds, ax
     mov es, ax
+    mov ss, ax
     mov fs, ax
     mov gs, ax
     mov rax, rdi

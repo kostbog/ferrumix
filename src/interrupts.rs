@@ -82,8 +82,11 @@ isr_common:
     push r15
 
     cld
-    mov rdi, rsp
+    mov rdi, rsp         // first argument: the trap frame
+    mov rbx, rsp         // the saved rbx in the frame is untouched by this
+    and rsp, -16         // the SysV ABI wants a 16 byte aligned stack
     call trap_dispatch
+    mov rsp, rbx
 
     pop r15
     pop r14
