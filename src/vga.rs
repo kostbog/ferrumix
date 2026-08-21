@@ -118,26 +118,33 @@ impl Writer {
             b'\r' => self.col = 0,
             b'\t' => {
                 for _ in 0..4 {
-                    self.write_byte(b' ');
+                    self.put(b' ');
                 }
             }
-            0x20..=0x7e => {
-                let cell = ScreenChar {
-                    ascii: byte,
-                    color: self.color_code(),
-                };
-                unsafe {
-                    let slot = (VGA_ADDR as *mut ScreenChar).add(self.row * WIDTH + self.col);
-                    core::ptr::write_volatile(slot, cell);
-                }
-                self.col += 1;
-                if self.col >= WIDTH {
-                    self.newline();
-                }
-            }
-            _ => self.write_byte(0xfe),
+            0x20..=0x7e => self.put(byte),
+            // Anything else (control characters, UTF-8 continuation bytes)
+            // becomes the code page 437 replacement glyph.  This must not go
+            // back through `write_byte`: 0xfe is not printable ASCII, so that
+            // would recurse forever.
+            _ => self.put(0xfe),
         }
         self.update_cursor();
+    }
+
+    /// Put one glyph at the cursor and advance, wrapping at the right edge.
+    fn put(&mut self, byte: u8) {
+        let cell = ScreenChar {
+            ascii: byte,
+            color: self.color_code(),
+        };
+        unsafe {
+            let slot = (VGA_ADDR as *mut ScreenChar).add(self.row * WIDTH + self.col);
+            core::ptr::write_volatile(slot, cell);
+        }
+        self.col += 1;
+        if self.col >= WIDTH {
+            self.newline();
+        }
     }
 
     pub fn write_string(&mut self, text: &str) {

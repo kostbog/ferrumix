@@ -213,7 +213,10 @@ pdpt:
     .skip 4096
 pd_table:
     .skip 4096
-.align 16
+.align 4096
+boot_stack_guard:
+    .skip 4096                   /* slack, so a stack overflow does not
+                                    immediately eat the page tables */
 boot_stack_bottom:
-    .skip 16384
+    .skip 32768
 boot_stack_top:
