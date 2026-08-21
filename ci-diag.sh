@@ -46,6 +46,11 @@ status=0
       grep -E "warning|error" | sed "s/^.*: //" | sort | uniq -c | sort -rn | head -15
     echo
 
+    echo "== image layout"
+    nm "${KERNEL}" 2>/dev/null | grep -E "__kernel_(start|end)|__bss_(start|end)" | sort
+    readelf -l "${KERNEL}" 2>/dev/null | grep -E "LOAD|NOTE" | head -8
+    echo
+
     echo "== boot test"
     timeout 25 qemu-system-x86_64 -kernel "${KERNEL}" -serial stdio -display none -monitor none
     echo "qemu exit: $?"
