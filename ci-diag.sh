@@ -33,8 +33,10 @@ status=0
   cargo build --target "${TARGET}" --message-format short > /tmp/build.out 2>&1
   build_rc=$?
   grep -E "error|warning" /tmp/build.out | head -30
-  echo "-- raw build tail --"
-  tail -40 /tmp/build.out
+  if [ "${build_rc}" -ne 0 ]; then
+    echo "-- verbose rebuild --"
+    cargo build --target "${TARGET}" 2>&1 | grep -v "^ *= note: *$" | tail -45
+  fi
   echo "build exit: ${build_rc}"
   echo
 
