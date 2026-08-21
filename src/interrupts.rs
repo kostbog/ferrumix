@@ -15,18 +15,18 @@ pub struct InterruptStackFrame {
 }
 
 extern "x86-interrupt" fn default_handler(frame: &mut InterruptStackFrame) {
-    crate::serial::serial_println!("EXCEPTION @ {:#x} (default handler)", frame.rip);
+    crate::serial_println!("EXCEPTION @ {:#x} (default handler)", frame.rip);
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }
 }
 
 extern "x86-interrupt" fn breakpoint(frame: &mut InterruptStackFrame) {
-    crate::serial::serial_println!("BREAKPOINT @ {:#x}", frame.rip);
+    crate::serial_println!("BREAKPOINT @ {:#x}", frame.rip);
 }
 
 extern "x86-interrupt" fn double_fault(frame: &mut InterruptStackFrame, code: u64) {
-    crate::serial::serial_println!("DOUBLE FAULT (error={}) @ {:#x}", code, frame.rip);
+    crate::serial_println!("DOUBLE FAULT (error={}) @ {:#x}", code, frame.rip);
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }
@@ -35,7 +35,7 @@ extern "x86-interrupt" fn double_fault(frame: &mut InterruptStackFrame, code: u6
 extern "x86-interrupt" fn page_fault(frame: &mut InterruptStackFrame, code: u64) {
     let cr2: u64;
     unsafe { asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack)) };
-    crate::serial::serial_println!(
+    crate::serial_println!(
         "PAGE FAULT @ {:#x} (cr2={:#x}, err={:#x})",
         frame.rip,
         cr2,
@@ -57,7 +57,7 @@ extern "x86-interrupt" fn timer_handler(_frame: &mut InterruptStackFrame) {
     unsafe {
         TICKS += 1;
         if TICKS % 1000 == 0 {
-            crate::serial::serial_println!("timer tick {}", TICKS);
+            crate::serial_println!("timer tick {}", TICKS);
         }
     }
     unsafe { port::outb(0x20, 0x20) };

@@ -99,21 +99,21 @@ pub extern "C" fn syscall_dispatch(stack: *mut SyscallStack) -> u64 {
             SYS_READ => do_read(s.rdi as usize, s.rsi as *mut u8, s.rdx as usize),
             SYS_WRITE => do_write(s.rdi as usize, s.rsi as *const u8, s.rdx as usize),
             SYS_OPEN => {
-                crate::serial::serial_println!("syscall: open({:#x}, ...) -> stub 3", s.rdi);
+                crate::serial_println!("syscall: open({:#x}, ...) -> stub 3", s.rdi);
                 3 // return a fake fd
             }
             SYS_CLOSE => {
-                crate::serial::serial_println!("syscall: close({}) -> ok", s.rdi);
+                crate::serial_println!("syscall: close({}) -> ok", s.rdi);
                 0
             }
             SYS_BRK => {
-                crate::serial::serial_println!("syscall: brk({:#x}) -> stub 0", s.rdi);
+                crate::serial_println!("syscall: brk({:#x}) -> stub 0", s.rdi);
                 0
             }
             SYS_GETPID => crate::process::current_pid(),
             SYS_EXIT => do_exit(s.rdi as usize),
             _ => {
-                crate::serial::serial_println!("syscall: unknown nr {} (rip={:#x}) -> ENOSYS", nr, s.rip);
+                crate::serial_println!("syscall: unknown nr {} (rip={:#x}) -> ENOSYS", nr, s.rip);
                 (-(ENOSYS as i64)) as u64
             }
         }
@@ -146,7 +146,7 @@ fn do_read(fd: usize, buf_ptr: *mut u8, len: usize) -> u64 {
         }
         bytes_read as u64
     } else {
-        crate::serial::serial_println!("syscall: read fd={} len={} -> stub 0", fd, len);
+        crate::serial_println!("syscall: read fd={} len={} -> stub 0", fd, len);
         0
     }
 }
@@ -163,7 +163,7 @@ fn do_write(fd: usize, buf_ptr: *const u8, len: usize) -> u64 {
     }
 
     if fd != STDOUT && fd != STDERR && fd != 0 {
-        crate::serial::serial_println!("syscall: write fd={} len={} -> alias to stdout", fd, len);
+        crate::serial_println!("syscall: write fd={} len={} -> alias to stdout", fd, len);
     }
 
     let slice = unsafe { core::slice::from_raw_parts(buf_ptr, len) };
@@ -182,7 +182,7 @@ fn do_write(fd: usize, buf_ptr: *const u8, len: usize) -> u64 {
 }
 
 fn do_exit(code: usize) -> u64 {
-    crate::serial::serial_println!("syscall: exit({}) pid={}", code, crate::process::current_pid());
+    crate::serial_println!("syscall: exit({}) pid={}", code, crate::process::current_pid());
     crate::println!("process exit({}) via syscall pid={}", code, crate::process::current_pid());
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
@@ -190,7 +190,7 @@ fn do_exit(code: usize) -> u64 {
 }
 
 pub fn init() {
-    crate::serial::serial_println!(
+    crate::serial_println!(
         "syscall: handler at {:#x}, int 0x80 DPL=3 ready",
         syscall_int80_entry as *const () as u64
     );

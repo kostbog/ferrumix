@@ -79,9 +79,9 @@ pub fn init() {
     let mut table = PROCESS_TABLE.lock();
     if let Some(pid) = table.create_init() {
         CURRENT_PID.store(pid, Ordering::Relaxed);
-        crate::serial::serial_println!("process: init created pid={} (table size={})", pid, MAX_PROCESSES);
+        crate::serial_println!("process: init created pid={} (table size={})", pid, MAX_PROCESSES);
     } else {
-        crate::serial::serial_println!("process: FAILED to create init");
+        crate::serial_println!("process: FAILED to create init");
     }
 }
 

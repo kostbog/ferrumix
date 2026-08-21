@@ -79,7 +79,7 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("KERNEL PANIC: {}", info);
-    serial::serial_println!("KERNEL PANIC: {}", info);
+    crate::serial_println!("KERNEL PANIC: {}", info);
     loop {
         unsafe { asm!("hlt", options(nomem, nostack, preserves_flags)) };
     }

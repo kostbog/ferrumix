@@ -22,27 +22,31 @@ status=0
   cargo -V
   echo
 
-  echo "== cargo fmt --all --check"
-  cargo fmt --all --check
-  echo "fmt exit: $?"
+  echo "== cargo fmt --all --check (files needing format)"
+  cargo fmt --all --check > /tmp/fmt.out 2>&1
+  fmt_rc=$?
+  grep -E "^Diff in" /tmp/fmt.out | sed "s|/home/runner/work/ferrumix/ferrumix/||" | sort -u | head -60
+  echo "fmt exit: ${fmt_rc}"
   echo
 
   echo "== cargo build --target ${TARGET}"
-  cargo build --target "${TARGET}"
+  cargo build --target "${TARGET}" --message-format short > /tmp/build.out 2>&1
   build_rc=$?
+  grep -E "error|warning" /tmp/build.out | head -50
   echo "build exit: ${build_rc}"
   echo
 
   if [ "${build_rc}" -eq 0 ]; then
     echo "== cargo clippy"
-    cargo clippy --target "${TARGET}" 2>&1 | grep -E "^(warning|error)" | sort | uniq -c | sort -rn | head -20
+    cargo clippy --target "${TARGET}" --message-format short 2>&1 |
+      grep -E "warning|error" | sed "s/^.*: //" | sort | uniq -c | sort -rn | head -15
     echo
 
     echo "== boot test"
     timeout 25 qemu-system-x86_64 -kernel "${KERNEL}" -serial stdio -display none -monitor none
     echo "qemu exit: $?"
   fi
-} >"${LOG}" 2>&1
+} 2>&1 | sed -e 's/\x1b\[[0-9;]*m//g' >"${LOG}"
 
 # Decide pass/fail the same way `make test` does.
 if ! grep -q "^fmt exit: 0$" "${LOG}"; then status=10; fi
