@@ -8,3 +8,9 @@ edition = "2021"
 # loaded by the Ferrumix kernel.
 
 [dependencies]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

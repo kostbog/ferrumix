@@ -3,7 +3,7 @@
 
 use core::fmt;
 use crate::port;
-use crate::spinlock::Spinlock;
+use crate::spinlock::IntSpinlock;
 
 pub struct SerialWriter {}
 
@@ -31,6 +31,12 @@ impl SerialWriter {
     }
 }
 
+impl Default for SerialWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl fmt::Write for SerialWriter {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         for b in s.bytes() {
@@ -47,7 +53,7 @@ impl fmt::Write for SerialWriter {
     }
 }
 
-pub static SERIAL: Spinlock<SerialWriter> = Spinlock::new(SerialWriter::new());
+pub static SERIAL: IntSpinlock<SerialWriter> = IntSpinlock::new(SerialWriter::new());
 
 pub fn init() {
     unsafe {

@@ -17,6 +17,8 @@ pub const ENOSYS: u64 = 38;
 pub const EINVAL: u64 = 22;
 pub const EFAULT: u64 = 14;
 
+const MAX_RW_LEN: usize = 1024 * 1024;
+
 #[repr(C)]
 pub struct SyscallStack {
     pub rax: u64,
@@ -120,12 +122,38 @@ pub extern "C" fn syscall_dispatch(stack: *mut SyscallStack) -> u64 {
     }
 }
 
-fn do_read(fd: usize, buf_ptr: *mut u8, len: usize) -> u64 {
-    if buf_ptr.is_null() {
-        return (-(EFAULT as i64)) as u64;
+fn validate_buffer(ptr: usize, len: usize) -> bool {
+    if ptr == 0 || len == 0 {
+        return false;
     }
+    let Some(end) = ptr.checked_add(len - 1) else {
+        return false;
+    };
+
+    // Until Ferrumix has per-process page tables and copy_from_user/copy_to_user,
+    // reject unmapped buffers before creating Rust slices from raw pointers.
+    let mut page = ptr & !0xFFF;
+    let end_page = end & !0xFFF;
+    loop {
+        if unsafe { crate::paging::translate_virt(page as u64) }.is_none() {
+            return false;
+        }
+        if page == end_page {
+            return true;
+        }
+        page += 0x1000;
+    }
+}
+
+fn do_read(fd: usize, buf_ptr: *mut u8, len: usize) -> u64 {
     if len == 0 {
         return 0;
+    }
+    if len > MAX_RW_LEN {
+        return (-(EINVAL as i64)) as u64;
+    }
+    if !validate_buffer(buf_ptr as usize, len) {
+        return (-(EFAULT as i64)) as u64;
     }
 
     // Read from stdin (fd 0) — keyboard character buffer
@@ -152,14 +180,14 @@ fn do_read(fd: usize, buf_ptr: *mut u8, len: usize) -> u64 {
 }
 
 fn do_write(fd: usize, buf_ptr: *const u8, len: usize) -> u64 {
-    if buf_ptr.is_null() {
-        return (-(EFAULT as i64)) as u64;
-    }
     if len == 0 {
         return 0;
     }
-    if len > 1024 * 1024 {
+    if len > MAX_RW_LEN {
         return (-(EINVAL as i64)) as u64;
+    }
+    if !validate_buffer(buf_ptr as usize, len) {
+        return (-(EFAULT as i64)) as u64;
     }
 
     if fd != STDOUT && fd != STDERR && fd != 0 {

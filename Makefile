@@ -20,7 +20,7 @@ build-release:
 
 build-custom:
 	cargo +nightly build --target $(CUSTOM_TARGET) -Zbuild-std=core,compiler_builtins
-	cargo +nightly build --target $(CUSTOM_TARGET) -Zbuild-std=core,compiler_builtins --release || true
+	cargo +nightly build --target $(CUSTOM_TARGET) -Zbuild-std=core,compiler_builtins --release
 
 # ── Run ────────────────────────────────────────────────────────────────
 
@@ -34,9 +34,11 @@ run-headless: build
 
 fmt:
 	cargo fmt --all --check
+	cargo fmt --manifest-path userspace/Cargo.toml --check
 
 clippy:
-	cargo clippy --target $(TARGET) -- -D warnings || true
+	cargo clippy --target $(TARGET) -- -D warnings
+	cargo clippy --manifest-path userspace/Cargo.toml --target $(TARGET) -- -D warnings
 
 # ── Test ───────────────────────────────────────────────────────────────
 

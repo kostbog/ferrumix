@@ -5,7 +5,7 @@
 //! This avoids deadlocks between the interrupt handler (which needs KB lock)
 //! and the shell (which needs WRITER lock for display).
 
-use crate::spinlock::Spinlock;
+use crate::spinlock::IntSpinlock;
 
 const CHAR_BUF_SIZE: usize = 512;
 
@@ -50,7 +50,7 @@ impl CharRing {
     }
 }
 
-static KB: Spinlock<CharRing> = Spinlock::new(CharRing::new());
+static KB: IntSpinlock<CharRing> = IntSpinlock::new(CharRing::new());
 
 /// Called from the keyboard interrupt handler on each key-down event.
 /// Simply buffers the character — NO echoing (the shell handles that).

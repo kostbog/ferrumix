@@ -66,6 +66,8 @@ impl FrameAllocator {
     pub fn init(&mut self, info: &Info) {
         self.regions = [Region::empty(); 32];
         self.region_count = 0;
+        self.free_list = [0; 256];
+        self.free_count = 0;
         self.total_frames = 0;
         self.used_frames = 0;
 
@@ -80,7 +82,7 @@ impl FrameAllocator {
                 continue;
             }
             let mut start = r.base;
-            let mut end = r.base + r.len;
+            let mut end = r.base.saturating_add(r.len);
 
             // Align start up, end down to frame boundaries.
             start = (start + FRAME_SIZE - 1) & !(FRAME_SIZE - 1);
@@ -90,7 +92,7 @@ impl FrameAllocator {
             }
 
             // Skip low memory <1 MiB to avoid clobbering BIOS / VGA / boot structures.
-            const LOW_MEM_CUTOFF: u64 = 1 * 1024 * 1024;
+            const LOW_MEM_CUTOFF: u64 = 1024 * 1024;
             if start < LOW_MEM_CUTOFF {
                 start = LOW_MEM_CUTOFF;
                 start = (start + FRAME_SIZE - 1) & !(FRAME_SIZE - 1);
@@ -163,7 +165,7 @@ impl FrameAllocator {
     }
 
     pub fn free_frame(&mut self, addr: u64) {
-        if addr % FRAME_SIZE != 0 {
+        if addr % FRAME_SIZE != 0 || !self.is_allocated_frame(addr) || self.is_recycled(addr) {
             return;
         }
         if self.free_count < self.free_list.len() {
@@ -175,6 +177,16 @@ impl FrameAllocator {
         }
     }
 
+    fn is_allocated_frame(&self, addr: u64) -> bool {
+        self.regions[..self.region_count]
+            .iter()
+            .any(|region| region.contains(addr) && addr < region.next)
+    }
+
+    fn is_recycled(&self, addr: u64) -> bool {
+        self.free_list[..self.free_count].contains(&addr)
+    }
+
     pub fn total_frames(&self) -> u64 {
         self.total_frames
     }
@@ -182,11 +194,13 @@ impl FrameAllocator {
         self.used_frames
     }
     pub fn free_frames(&self) -> u64 {
-        if self.total_frames >= self.used_frames {
-            self.total_frames - self.used_frames + self.free_count as u64
-        } else {
-            self.free_count as u64
-        }
+        self.total_frames.saturating_sub(self.used_frames)
+    }
+}
+
+impl Default for FrameAllocator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

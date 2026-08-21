@@ -26,7 +26,7 @@ impl<T> Spinlock<T> {
         }
     }
 
-    pub fn lock(&self) -> SpinlockGuard<T> {
+    pub fn lock(&self) -> SpinlockGuard<'_, T> {
         while self
             .locked
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
@@ -78,7 +78,7 @@ impl<T> IntSpinlock<T> {
         }
     }
 
-    pub fn lock(&self) -> IntSpinlockGuard<T> {
+    pub fn lock(&self) -> IntSpinlockGuard<'_, T> {
         // Disable interrupts before acquiring the lock.
         let was_enabled = unsafe { crate::port::pushcli() };
         while self
