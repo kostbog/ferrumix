@@ -13,6 +13,7 @@ const NAME_LEN: usize = 16;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
+#[allow(dead_code)]
 pub enum ProcessState {
     Unused = 0,
     Runnable = 1,

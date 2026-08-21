@@ -6,22 +6,29 @@
 [build]
 target = "x86_64-unknown-none"
 
+# A kernel is loaded at a fixed physical address and is *not* position
+# independent: the boot trampoline and the interrupt stub table use absolute
+# addresses, so codegen must use the static relocation model and the linker
+# must not produce a PIE.
 [target.x86_64-unknown-none]
-# We provide our own linker script (see linker.ld) which lays out the kernel
-# at 1 MiB physical and keeps the Multiboot2 header at the very front.
 rustflags = [
+  "-C", "relocation-model=static",
+  "-C", "link-arg=--no-pie",
   "-C", "link-arg=-Tlinker.ld",
 ]
 
 [target.x86_64-ferrumix]
 rustflags = [
+  "-C", "relocation-model=static",
+  "-C", "link-arg=--no-pie",
   "-C", "link-arg=-Tlinker.ld",
 ]
 
-# Cargo treats a `x86_64-ferrumix.json` file path as target; need to repeat flags
-# for cfg when invoked via file path (cargo interprets target json filename as
-# generic, but specifying both triples ensures linker script still used).
+# Cargo treats a `x86_64-ferrumix.json` file path as a target of its own, so the
+# same flags are repeated for anything built for a bare-metal `target_os`.
 [target.'cfg(target_os = "none")']
 rustflags = [
+  "-C", "relocation-model=static",
+  "-C", "link-arg=--no-pie",
   "-C", "link-arg=-Tlinker.ld",
 ]
