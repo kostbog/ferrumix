@@ -17,7 +17,7 @@
   "relro-level": "off",
   "position-independent-executables": false,
   "static-position-independent-executables": false,
-  "needs-plt": false,
   "has-thread-local": false,
-  "relocation-model": "static"
+  "relocation-model": "static",
+  "plt-by-default": false
 }
