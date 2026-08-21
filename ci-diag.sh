@@ -32,7 +32,9 @@ status=0
   echo "== cargo build --target ${TARGET}"
   cargo build --target "${TARGET}" --message-format short > /tmp/build.out 2>&1
   build_rc=$?
-  grep -E "error|warning" /tmp/build.out | head -50
+  grep -E "error|warning" /tmp/build.out | head -30
+  echo "-- raw build tail --"
+  tail -40 /tmp/build.out
   echo "build exit: ${build_rc}"
   echo
 
