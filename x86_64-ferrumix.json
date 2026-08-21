@@ -20,5 +20,5 @@
   "has-thread-local": false,
   "relocation-model": "static",
   "plt-by-default": false,
-  "rustc-abi": "x86-softfloat"
+  "rustc-abi": "softfloat"
 }
