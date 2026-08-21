@@ -44,15 +44,13 @@ pub extern "C" fn kernel_main(magic: u32, mb_info: u32) -> ! {
     serial::init();
 
     println!("Ferrumix 0.1.0 — a tiny Unix-like kernel in Rust");
-    println!("boot magic: {:#x}, multiboot info @ {:#x}", magic, mb_info);
-    if magic != 0x36d7_6289 {
-        println!("WARNING: unexpected Multiboot2 magic");
-    }
+    println!("boot magic: {:#x}, boot info @ {:#x}", magic, mb_info);
     console::init();
 
-    let info = unsafe { multiboot::parse(mb_info as usize) };
+    let info = unsafe { multiboot::parse(magic, mb_info as usize) };
     println!(
-        "detected usable RAM: {} MiB ({} regions)",
+        "boot protocol: {}, usable RAM: {} MiB in {} region(s)",
+        info.protocol,
         info.usable_memory / (1024 * 1024),
         info.region_count
     );

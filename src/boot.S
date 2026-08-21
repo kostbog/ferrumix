@@ -1,9 +1,12 @@
-/* boot.S — Multiboot2 32-bit entry + long-mode trampoline for Ferrumix.
+/* boot.S — Multiboot entry + long-mode trampoline for Ferrumix.
  *
- * QEMU's `-kernel` with a Multiboot2 header loads us in 32-bit protected
- * mode (paging off, flat segments) and jumps to `_start` with:
- *     EAX = multiboot2 magic (0x36d76289)
- *     EBX = physical address of the Multiboot2 information structure
+ * The image carries two boot headers so it can be started either way:
+ *
+ *   * Multiboot1 (0x1BADB002) — this is what QEMU's `-kernel` understands,
+ *     it enters with EAX = 0x2BADB002 and EBX = pointer to the info struct;
+ *   * Multiboot2 (0xE85250D6) — used by GRUB, EAX = 0x36D76289.
+ *
+ * Either way we are entered in 32-bit protected mode with paging disabled.
  *
  * Our job here:
  *   1. Build 1:1 page tables (identity map the first 1 GiB with 2 MiB pages).
@@ -12,18 +15,31 @@
  *   4. Set up the stack and call kernel_main(magic, mb_info).
  */
 
-.set MAGIC,    0xe85250d6
-.set ARCH,     0                 /* 0 = x86 (32-bit) */
-.set HDR_LEN,  (mb2_end - mb2_start)
-.set CHECKSUM, (0 - (MAGIC + ARCH + HDR_LEN)) & 0xFFFFFFFF
+.set MB1_MAGIC,    0x1BADB002
+.set MB1_FLAGS,    0x00000003   /* align modules on pages + memory map     */
+.set MB1_CHECKSUM, -(MB1_MAGIC + MB1_FLAGS)
 
-.section .multiboot2, "a"
+.set MB2_MAGIC,    0xe85250d6
+.set MB2_ARCH,     0            /* 0 = x86 (32-bit)                        */
+.set MB2_LEN,      (mb2_end - mb2_start)
+.set MB2_CHECKSUM, (0 - (MB2_MAGIC + MB2_ARCH + MB2_LEN)) & 0xFFFFFFFF
+
+.section .multiboot, "a"
+/* --- Multiboot1 header (QEMU -kernel) --- */
+.align 4
+mb1_start:
+    .long MB1_MAGIC
+    .long MB1_FLAGS
+    .long MB1_CHECKSUM
+mb1_end:
+
+/* --- Multiboot2 header (GRUB) --- */
 .align 8
 mb2_start:
-    .long MAGIC
-    .long ARCH
-    .long HDR_LEN
-    .long CHECKSUM
+    .long MB2_MAGIC
+    .long MB2_ARCH
+    .long MB2_LEN
+    .long MB2_CHECKSUM
     /* Information request tag (type 1): ask for cmdline(4), mmap(6), fb(8). */
     .align 8
     .long 1

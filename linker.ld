@@ -20,7 +20,7 @@ SECTIONS
     __kernel_phys_start = .;
 
     .text : {
-        KEEP(*(.multiboot2))      /* Multiboot2 header must come first */
+        KEEP(*(.multiboot))       /* Multiboot1 + Multiboot2 headers first */
         *(.text .text.*)
     }
 
