@@ -26,5 +26,9 @@ rustflags = [
 # `-Zbuild-std=core,compiler_builtins` (used for the custom target on nightly)
 # does not build the memcpy/memset/... implementations by default, but a
 # freestanding kernel needs them; this key is ignored on stable toolchains.
+# Nightly cargo also needs to be told that `.json` target specifications are
+# allowed (`-Zjson-target-spec`), which is how the custom `x86_64-ferrumix`
+# target is built.  Both keys are ignored by stable toolchains.
 [unstable]
 build-std-features = ["compiler-builtins-mem"]
+json-target-spec = true
