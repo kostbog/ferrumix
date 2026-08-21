@@ -65,6 +65,14 @@ pub fn init() {
     }
 }
 
+/// Write one raw byte to COM1 without locking or waiting.
+///
+/// Used for early boot traces, before (or while debugging) the locking
+/// console: it must work even if the rest of the kernel is wedged.
+pub fn trace(byte: u8) {
+    unsafe { port::outb(COM1, byte) };
+}
+
 #[macro_export]
 macro_rules! serial_print {
     ($($arg:tt)*) => ($crate::serial::_serial_print(format_args!($($arg)*)));
