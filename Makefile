@@ -43,7 +43,10 @@ clippy:
 # Full test suite: lint + build + boot test.  This is the single entry
 # point used by CI (`make test`).  Run it locally to verify everything.
 
-test: fmt clippy build _boot-test-debug
+test: fmt clippy build _boot-test-debug _custom-target-diag
+
+_custom-target-diag:
+	@bash ci-custom.sh
 
 test-release: fmt clippy build-release _boot-test-release
 
